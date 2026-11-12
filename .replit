@@ -1,6 +1,6 @@
 run = "npm run dev -- --host 0.0.0.0 --port 5000"
 entrypoint = "src/main.tsx"
-modules = ["nodejs-20", "web", "python-base-3.13"]
+modules = ["nodejs-22", "web", "python-base-3.13"]
 
 [[ports]]
 localPort = 5000

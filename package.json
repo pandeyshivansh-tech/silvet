@@ -5,7 +5,7 @@
   "type": "module",
   "description": "SILVET — your wardrobe, your style, your everyday outfit companion.",
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "vite",
