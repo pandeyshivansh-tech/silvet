@@ -1,0 +1,75 @@
+{
+  "report": [
+    {
+      "path": "comparison.html",
+      "width": 1800,
+      "height": 1972,
+      "nativeSizes": [
+        16,
+        24,
+        32,
+        16,
+        24,
+        32,
+        16,
+        24,
+        32,
+        16,
+        24,
+        32,
+        16,
+        24,
+        32,
+        16,
+        24,
+        32
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "path": "a-selvedge/proof.html",
+      "width": 880,
+      "height": 1723,
+      "nativeSizes": [
+        16,
+        24,
+        32,
+        16,
+        24,
+        32
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "path": "b-stitched/proof.html",
+      "width": 880,
+      "height": 1723,
+      "nativeSizes": [
+        16,
+        24,
+        32,
+        16,
+        24,
+        32
+      ],
+      "horizontalOverflow": false
+    },
+    {
+      "path": "c-fold/proof.html",
+      "width": 880,
+      "height": 1723,
+      "nativeSizes": [
+        16,
+        24,
+        32,
+        16,
+        24,
+        32
+      ],
+      "horizontalOverflow": false
+    }
+  ],
+  "phoneWidth": 360,
+  "phoneOverflow": false,
+  "browserErrors": []
+}

@@ -13,7 +13,7 @@ export function safeNext(raw?: string | null): string {
     const url = new URL(raw, "https://silvet.invalid");
     const pathname = decodeURIComponent(url.pathname);
     if (url.origin !== "https://silvet.invalid" || unsafePath(pathname)) return paths.profile();
-    if (!/^\/app(?:\/(?:profile|style|wardrobe(?:\/[\w-]+(?:\/edit)?)?|lookbook(?:\/[\w-]+)?))?\/?$/.test(pathname)) return paths.profile();
+    if (!/^\/app(?:\/(?:profile|style|ideas|wardrobe(?:\/[\w-]+(?:\/edit)?)?|lookbook(?:\/[\w-]+)?))?\/?$/.test(pathname)) return paths.profile();
     return url.pathname + url.search;
   } catch { return paths.profile(); }
 }

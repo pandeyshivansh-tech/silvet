@@ -22,7 +22,7 @@ export const profile = (id = accountA, complete = false) => ({
   id, display_name: null, style_preferences: [], onboarding_completed_at: complete ? "2026-11-12T00:00:00Z" : null,
   created_at: "2026-11-12T00:00:00Z", updated_at: "2026-11-12T00:00:00Z",
 });
-export function createAuthFixtures(origin) {
+export function createAuthFixtures(origin, { handleData } = {}) {
   const rows = new Map();
   const counts = { signup: 0, password: 0, resend: 0, verify: 0, exchange: 0, provision: 0, update: 0, logout: 0, refresh: 0, oauth: 0, forbidden: 0 };
   const state = { google: false, loginError: null, saveError: false, readError: false, resendError: false, otpError: false, exchangeError: false, refreshError: false, delay: 0, account: accountA, userError: false, oauthRequestValid: false };
@@ -38,7 +38,7 @@ export function createAuthFixtures(origin) {
         { name: "Access-Control-Allow-Methods", value: "GET,POST,PATCH,DELETE,OPTIONS" },
         { name: "Access-Control-Expose-Headers", value: "*" },
       ];
-      const reply = (value, status = 200) => page.send("Fetch.fulfillRequest", { requestId, responseCode: status, responseHeaders: headers, body: Buffer.from(status === 204 ? "" : JSON.stringify(value)).toString("base64") });
+      const reply = (value, status = 200, extraHeaders = []) => page.send("Fetch.fulfillRequest", { requestId, responseCode: status, responseHeaders: [...headers, ...extraHeaders], body: Buffer.from(status === 204 || request.method === "HEAD" ? "" : JSON.stringify(value)).toString("base64") });
       if (request.method === "OPTIONS") { await reply({}); return; }
       if (state.delay) await new Promise((resolve) => setTimeout(resolve, state.delay));
       const failure = (code = "unexpected_failure", status = 400) => reply({ code, error_code: code, msg: "Synthetic request failure", message: "Synthetic request failure" }, status);
@@ -76,6 +76,9 @@ export function createAuthFixtures(origin) {
           rows.set(id, { ...rows.get(id), ...body }); await reply(rows.get(id)); return;
         }
       }
+      if (handleData && await handleData({ request, url, body, reply, failure, account: state.account })) return;
+      if (["wardrobe_items", "saved_outfits", "outfit_items"].some((name) => url.pathname === `/rest/v1/${name}`)
+          && ["GET", "HEAD"].includes(request.method)) { await reply([]); return; }
       counts.forbidden++; await failure("unsupported_fixture_request", 403);
     });
     await page.send("Fetch.enable", { patterns: [{ urlPattern: "*supabase.co/*", requestStage: "Request" }] });

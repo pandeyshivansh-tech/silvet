@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CATEGORIES, COLORS, OCCASIONS, PATTERNS, SEASONS, STYLES, SUBCATEGORIES } from "@/domain/taxonomy";
+import { CATEGORIES, COLORS, MAX_ACCESSORIES, OCCASIONS, PATTERNS, SEASONS, STYLES, SUBCATEGORIES } from "@/domain/taxonomy";
 import { validateSupabaseConfig } from "./config";
 import { wardrobeImagePaths, WARDROBE_BUCKET } from "./storagePaths";
+import type { Database } from "./database.types";
 
 const createClient = vi.hoisted(() => vi.fn(() => ({ testClient: true })));
 vi.mock("@supabase/supabase-js", () => ({ createClient }));
@@ -98,7 +99,44 @@ describe("schema/domain parity (SQL execution is verified separately)", () => {
   });
   it("keeps the demo independent of live data and preserves explicit callback handling", () => {
     expect(readFileSync("src/app/layouts.tsx", "utf8")).toContain("new DemoRepository()");
-    expect(readFileSync("src/app/layouts.tsx", "utf8")).not.toContain("new SupabaseRepository");
+    expect(readFileSync("src/app/layouts.tsx", "utf8")).toContain("new SupabaseRepository(user.id)");
     expect(readFileSync("src/lib/supabase/client.ts", "utf8")).toContain("detectSessionInUrl: false");
+  });
+  it("keeps atomic-save standalone outerwear and accessory capacity aligned with the domain", () => {
+    const sql = readFileSync("supabase/migrations/202611120004_atomic_save_outfit.sql", "utf8");
+    const values = sql.match(/standalone_outerwear := garment.subcategory_slug in \(([^)]+)\)/)?.[1];
+    expect([...values!.matchAll(/'([^']+)'/g)].map((m) => m[1])).toEqual(
+      SUBCATEGORIES.filter((s) => s.slot === "outerwear" && s.canBeWornAlone).map((s) => s.slug));
+    expect(sql).toContain(`live_accessories > ${MAX_ACCESSORIES}`);
+  });
+  it("types the public composite foreign keys declared for outfit items", () => {
+    const relationships: Database["public"]["Tables"]["outfit_items"]["Relationships"] = [
+      {
+        foreignKeyName: "outfit_items_outfit_id_user_id_fkey",
+        columns: ["outfit_id", "user_id"],
+        isOneToOne: false,
+        referencedRelation: "saved_outfits",
+        referencedColumns: ["id", "user_id"],
+      },
+      {
+        foreignKeyName: "outfit_items_item_id_user_id_fkey",
+        columns: ["item_id", "user_id"],
+        isOneToOne: false,
+        referencedRelation: "wardrobe_items",
+        referencedColumns: ["id", "user_id"],
+      },
+    ];
+    const schema = readFileSync("supabase/migrations/202611120001_silvet_foundation.sql", "utf8");
+    expect(schema).toContain("foreign key (outfit_id, user_id) references public.saved_outfits(id, user_id)");
+    expect(schema).toContain("foreign key (item_id, user_id) references public.wardrobe_items(id, user_id)");
+    expect(relationships.map((relationship) => relationship.foreignKeyName)).toEqual([
+      "outfit_items_outfit_id_user_id_fkey",
+      "outfit_items_item_id_user_id_fkey",
+    ]);
+  });
+  it("assigns account-scoped keys to every product mutation", () => {
+    const hooks = readFileSync("src/data/hooks.ts", "utf8");
+    expect(hooks.match(/mutationKey: mutationKeys\.items\(repo\)/g)).toHaveLength(3);
+    expect(hooks.match(/mutationKey: mutationKeys\.outfits\(repo\)/g)).toHaveLength(2);
   });
 });

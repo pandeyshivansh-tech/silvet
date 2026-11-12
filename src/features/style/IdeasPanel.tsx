@@ -1,7 +1,8 @@
 import { useImperativeHandle, useRef, useState, type Ref } from "react";
 import { OCCASIONS, SEASONS, STYLES, SLOT_LABELS, type OccasionSlug, type StyleSlug } from "@/domain/taxonomy";
 import type { ClothingItem, OutfitPiece } from "@/domain/types";
-import { errorMessage, useSaveOutfit } from "@/data";
+import { errorMessage, useRepository, useSaveOutfit } from "@/data";
+import { useProfile } from "@/data/profiles/hooks";
 import { paths, type Base } from "@/app/paths";
 import { Button, ButtonLink, ItemCard, PageHeader, SelectField, useToast } from "@/ui";
 import { useIdeaSession } from "./useIdeaSession";
@@ -16,7 +17,11 @@ interface Props {
   ref?: Ref<EditorGuard>;
 }
 export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
-  const ideas = useIdeaSession(items, base);
+  const repository = useRepository();
+  const profile = useProfile(repository.kind === "supabase");
+  const initialStyle = repository.kind === "supabase" ? profile.data?.stylePreferences[0] : undefined;
+  const ideas = useIdeaSession(items, repository.kind === "demo" ? base : `supabase:${repository.userId}`,
+    { occasion: "everyday", ...(initialStyle ? { style: initialStyle } : {}) });
   const mutation = useSaveOutfit();
   const saving = useRef(false);
   const toast = useToast();
@@ -103,7 +108,9 @@ export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
         </section>
       )}
       <p role="status" aria-live="polite" className="mt-4 text-caption text-graphite-deep">{ideas.notice}</p>
-      <p className="mt-6 border-t border-line pt-5 text-caption text-graphite-deep">Demo pieces, saved looks and idea history stay in this tab only. Photos are not stored.</p>
+      <p className="mt-6 border-t border-line pt-5 text-caption text-graphite-deep">{base === "/demo"
+        ? "Demo pieces, saved looks and idea history stay in this tab only. Photos are not stored."
+        : "Saved looks belong to your account. Ideas filters don’t change your saved style preferences. Image uploads are not available yet."}</p>
     </>
   );
 }

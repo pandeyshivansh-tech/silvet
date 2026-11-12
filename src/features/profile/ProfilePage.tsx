@@ -59,7 +59,7 @@ export default function ProfilePage() {
             </section>
             <div className="mt-7 flex flex-col items-start gap-5">
               <div className="flex flex-wrap gap-3">
-                <ButtonLink to={paths.wardrobe("/app")}>Personal wardrobe status</ButtonLink>
+                <ButtonLink to={paths.wardrobe("/app")}>Personal wardrobe</ButtonLink>
                 <ButtonLink to={paths.style("/app")} variant="secondary">Studio status</ButtonLink>
                 <ButtonLink to={paths.lookbook("/app")} variant="secondary">Lookbook status</ButtonLink>
               </div>

@@ -8,8 +8,10 @@ externalPort = 80
 
 [deployment]
 # Production is deployed by Cloudflare Pages from GitHub, not from Replit.
-run = ["sh", "-c", "npm run preview"]
+run = ["sh", "-c", "npm run preview -- --host 0.0.0.0 --port ${PORT:-5000}"]
 build = ["sh", "-c", "npm run build"]
+deploymentTarget = "gce"
+ignorePorts = false
 
 [nix]
 channel = "stable-25_05"

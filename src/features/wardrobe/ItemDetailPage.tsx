@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useBasePath, useDeleteItem, useItem, useItemImages, useItemUsage } from "@/data";
 import { errorMessage } from "@/data/repository";
@@ -18,9 +18,11 @@ export default function ItemDetailPage() {
   const usageQuery = useItemUsage(itemId);
   const deleteItem = useDeleteItem();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const deleting = useRef(false);
 
   const remove = async () => {
-    if (!itemId) return;
+    if (!itemId || deleting.current) return;
+    deleting.current = true;
     try {
       await deleteItem.mutateAsync(itemId);
       setConfirmOpen(false);
@@ -28,6 +30,8 @@ export default function ItemDetailPage() {
       navigate(paths.wardrobe(base));
     } catch (error) {
       toast.error(errorMessage(error));
+    } finally {
+      deleting.current = false;
     }
   };
 

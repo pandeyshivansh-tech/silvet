@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Outlet, ScrollRestoration, useLocation } from "react-router";
 import { DemoRepository, RepositoryProvider } from "@/data";
 import { RequireAuth } from "@/lib/auth/RequireAuth";
 import { AppShell } from "./AppShell";
 import { RequireOnboarding } from "@/lib/auth/RequireOnboarding";
-import { AuthFrame } from "@/features/auth/AuthFrame";
-import { ButtonLink } from "@/ui";
 import { paths } from "./paths";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { SupabaseRepository } from "@/data/supabase/SupabaseRepository";
 
 /** Top-level layout: scroll restoration for every route. */
 export function RootLayout() {
@@ -28,19 +28,20 @@ export function DemoLayout() {
   );
 }
 
-/** Account-only until SupabaseRepository is implemented; never pass sample data as personal data. */
+/** Repositories and local drafts are isolated by account, inside the verified guards. */
+function AccountProduct() {
+  const { user } = useAuth();
+  const repository = useMemo(() => user?.emailVerified ? new SupabaseRepository(user.id) : null, [user?.id, user?.emailVerified]);
+  if (!repository) return null;
+  return <RepositoryProvider key={repository.userId} repository={repository}><AppShell /></RepositoryProvider>;
+}
+
 export function AppLayout() {
   const location = useLocation();
   return (
     <RequireAuth>
       <RequireOnboarding>
-        {location.pathname.replace(/\/$/, "") === paths.profile() ? <Outlet /> :
-          <AuthFrame eyebrow="Your account" title="Your account is ready" description="Your personal wardrobe, Studio and Lookbook are coming next. Nothing from the demo has been copied into your account.">
-            <div className="flex flex-col gap-4">
-              <ButtonLink to={paths.profile()}>Your profile</ButtonLink>
-              <ButtonLink to={paths.wardrobe("/demo")} variant="secondary">Explore the sample wardrobe</ButtonLink>
-            </div>
-          </AuthFrame>}
+        {location.pathname.replace(/\/$/, "") === paths.profile() ? <Outlet /> : <AccountProduct />}
       </RequireOnboarding>
     </RequireAuth>
   );

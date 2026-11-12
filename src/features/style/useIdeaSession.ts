@@ -18,11 +18,11 @@ function readHistory(key: string): { seen: string[]; warning: boolean } {
 }
 
 /** Browser/session concerns are deliberately outside the pure engine. */
-export function useIdeaSession(items: Wardrobe, namespace: string) {
+export function useIdeaSession(items: Wardrobe, namespace: string, initialContext: RecommendationContext = { occasion: "everyday" }) {
   const key = `silvet.ideas.seen.${namespace}.v1`;
   const [session, setSession] = useState(() => {
     const history = readHistory(key);
-    const context: RecommendationContext = { occasion: "everyday" };
+    const context: RecommendationContext = { ...initialContext };
     const result = recommend(items, context, history.seen);
     return { context, result, seen: remember(history.seen, result) };
   });

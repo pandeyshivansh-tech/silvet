@@ -3,6 +3,10 @@ import { authError, safeNext, signInSchema, signUpSchema, emailCodeSchema } from
 import { profileInputSchema } from "@/domain/profileSchema";
 
 describe("safe authentication continuation", () => {
+  it("allows the approved Ideas entry point without allowing off-site redirects", () => {
+    expect(safeNext("/app/ideas")).toBe("/app/ideas");
+    expect(safeNext("//evil.test/app/ideas")).toBe("/app/profile");
+  });
   it.each(["https://evil.test", "//evil.test", "/\\evil.test", "/auth/callback", "/onboarding", "/app/../../auth/sign-in", "/app/%5c%5cevil", "/app/%0aevil", "/app/%", "/app/profile bad", "javascript:alert(1)", "/app//evil"])("rejects %s", (input) => expect(safeNext(input)).toBe("/app/profile"));
   it.each(["/app", "/app/profile", "/app/wardrobe", "/app/wardrobe/item-1/edit", "/app/style?mode=ideas", "/app/lookbook/outfit-1"])("preserves %s", (input) => expect(safeNext(input)).toBe(input));
 });

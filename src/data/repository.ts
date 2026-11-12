@@ -63,6 +63,8 @@ export interface UpdateItemArgs {
 
 export interface Repository {
   readonly kind: RepositoryKind;
+  /** Required for personal repositories; never use kind alone as a personal cache namespace. */
+  readonly userId?: string;
 
   listItems(): Promise<ClothingItem[]>;
   getItem(id: string): Promise<ClothingItem | null>;

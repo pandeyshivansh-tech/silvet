@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ImagePlus } from "lucide-react";
-import { errorMessage, isRepositoryError } from "@/data";
+import { errorMessage, isRepositoryError, useIsDemo } from "@/data";
 import { CATEGORIES, COLORS, OCCASIONS, PATTERNS, SEASONS, STYLES, subcategoriesOf } from "@/domain/taxonomy";
 import { fieldErrors, ITEM_NAME_MAX, itemInputSchema, type ItemInput } from "@/domain/schemas";
 import { Button, Chip, SelectField, TextField } from "@/ui";
@@ -73,7 +73,9 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
   loading?: boolean;
   onSave: (input: ItemInput) => Promise<void>;
 }) {
+  const isDemo = useIsDemo();
   const formRef = useRef<HTMLFormElement>(null);
+  const submitLock = useRef(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [values, setValues] = useState<FormValues>(() => valuesFromItem(initialItem));
   const [fieldErrorMap, setFieldErrorMap] = useState<Record<string, string>>({});
@@ -109,7 +111,7 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (loading) return;
+    if (loading || submitLock.current) return;
     setFormError("");
     const result = itemInputSchema.safeParse({
       ...values,
@@ -130,6 +132,7 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
       return;
     }
     setFieldErrorMap({});
+    submitLock.current = true;
     try {
       // Image selection is intentionally local-only; never pass a browser File as a stored image.
       await onSave(result.data);
@@ -142,6 +145,8 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
       } else {
         setFormError(errorMessage(error));
       }
+    } finally {
+      submitLock.current = false;
     }
   };
 
@@ -272,7 +277,8 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
         </label>
         {photoError && <p className="text-caption text-danger" role="alert">{photoError}</p>}
         <p className="text-caption text-graphite-deep">
-          Preview only — photos are not saved in this demo. Your clothing details can still be saved.
+          {isDemo ? "Preview only — photos are not saved in this demo. Your clothing details can still be saved."
+            : "Preview only — image uploads are not available yet. Only your clothing details will be saved."}
         </p>
       </aside>
     </form>

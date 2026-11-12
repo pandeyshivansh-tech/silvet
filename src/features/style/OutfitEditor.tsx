@@ -203,7 +203,8 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
               {outfit ? "Save changes" : "Save this look"}
             </Button>
             <p className="mt-3 text-center text-caption text-graphite-deep">
-              {outfit ? "Your notes and source stay with this look." : "Saved looks stay in this demo session only."}
+              {outfit ? "Your notes and source stay with this look." : base === "/demo"
+                ? "Saved looks stay in this demo session only." : "Saved looks are stored in your account."}
             </p>
           </div>
         </aside>

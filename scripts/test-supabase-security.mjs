@@ -27,16 +27,20 @@ try {
     run("psql", [...psql, "-f", resolve("supabase/migrations", migration)]);
     console.log(`APPLIED locally: ${migration}`);
   }
-  const output = spawnSync("psql", [...psql, "-f", resolve("supabase/tests/rls.sql")], {
+  let total = 0;
+  for (const testFile of ["rls.sql", "atomic_outfits.sql"]) {
+  const output = spawnSync("psql", [...psql, "-f", resolve("supabase/tests", testFile)], {
     encoding: "utf8", timeout: 60000, stdio: ["ignore", "pipe", "pipe"],
   });
   if (output.error || output.status !== 0) throw output.error ?? new Error(output.stderr);
   const assertions = output.stderr.split("\n").filter((line) => line.includes("NOTICE:  PASS:"));
   assertions.forEach((line) => console.log(line.slice(line.indexOf("PASS:"))));
   const assertionCount = assertions.length;
-  const expected = (readFileSync("supabase/tests/rls.sql", "utf8").match(/select tests\.(?:ok|denied)\(/g) ?? []).length;
+  const expected = (readFileSync(resolve("supabase/tests", testFile), "utf8").match(/select tests\.(?:ok|denied)\(/g) ?? []).length;
   if (assertionCount !== expected) throw new Error(`Expected ${expected} SQL assertions, observed ${assertionCount}.`);
-  console.log(`PASS: ${migrations.length} migrations and ${assertionCount} SQL security/schema assertions in isolated PostgreSQL.`);
+  total += assertionCount;
+  }
+  console.log(`PASS: ${migrations.length} migrations and ${total} SQL security/schema assertions in isolated PostgreSQL.`);
 } catch (error) {
   console.error(error.stderr?.toString() || error.message);
   if (started) console.error(readFileSync(log, "utf8").split("\n").slice(-8).join("\n"));

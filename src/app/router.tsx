@@ -54,6 +54,8 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: "profile", element: <ProfilePage /> },
+          // Milestone 4 approved entry point; reuse Studio's existing Ideas mode.
+          { path: "ideas", element: <Navigate to="/app/style?mode=ideas" replace /> },
           ...sharedWardrobeRoutes,
         ],
       },

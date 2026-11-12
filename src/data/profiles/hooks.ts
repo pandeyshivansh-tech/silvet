@@ -4,11 +4,11 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { AuthFlowError } from "@/lib/auth/authFlow";
 import { createProfileService } from "./profileService";
 const service = createProfileService();
-export function useProfile() {
+export function useProfile(enabled = true) {
   const { user, status } = useAuth();
   return useQuery({
     queryKey: ["profile", user?.id],
-    enabled: status === "signed-in" && user?.emailVerified === true,
+    enabled: enabled && status === "signed-in" && user?.emailVerified === true,
     queryFn: ({ signal }) => service.load(user!.id, signal),
     retry: false,
     staleTime: 60_000,

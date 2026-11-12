@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createAuthController, type AuthController, type AuthSnapshot } from "./authController";
+import { clearAccountCache } from "@/data/queryScope";
 export type { AuthStatus, AuthUser } from "./authController";
 export type AuthState = AuthSnapshot & Pick<AuthController, "signIn" | "signUp" | "signOut" | "resend" | "verifyEmail" | "signInWithGoogle" | "finishCallback" | "retry" | "checkProviders">;
 
@@ -16,8 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const previous = previousUser.current;
     const current = snapshot.user?.id ?? null;
     if (previous && previous !== current) {
-      void queryClient.cancelQueries({ queryKey: ["profile", previous] });
-      queryClient.removeQueries({ queryKey: ["profile", previous] });
+      clearAccountCache(queryClient, previous);
     }
     previousUser.current = current;
   }, [snapshot.user?.id, queryClient]);
