@@ -2,7 +2,7 @@
 
 **Your wardrobe. Your style. Your everyday outfit companion.**
 
-SILVET helps people digitise the clothes they already own, combine them into outfits, get honest rule-based outfit ideas, and keep the looks they love — across Western and Indian wear.
+SILVET is built to help people digitise the clothes they already own, combine them into outfits, get honest rule-based outfit ideas, and keep the looks they love — across Western and Indian wear.
 
 ## Quick start
 Requires Node 20.19+ (Node 22 recommended).
