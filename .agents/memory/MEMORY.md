@@ -1,2 +1,3 @@
 - [Demo wardrobe scope](demo-wardrobe-scope.md) — demo clothing changes are temporary; photo previews must not imply stored uploads.
 - [Styling principles](styling-principles.md) — Indian fashion is first-class; future AI must extend the domain engine, not replace it.
+- [Responsive brand identity](responsive-brand-identity.md) — bespoke Selvedge S on phones; full SILVET wordmark on desktop and on tablets when space allows.
