@@ -237,4 +237,28 @@ describe("DemoRepository", () => {
       }),
     ).rejects.toThrow();
   });
+
+  it("keeps an outfit in memory and storage when deleting it fails, and allows retry", async () => {
+    const { store, failNextWrite } = memoryStoreWithOneFailedWrite();
+    const repo = new DemoRepository({ store });
+    const saved = await repo.saveOutfit({ input: { name: null, pieces: DEMO_OUTFITS[0]!.pieces } });
+    const beforeItems = await repo.listItems();
+    failNextWrite();
+    await expect(repo.deleteOutfit(saved.id)).rejects.toMatchObject({ code: "storage" });
+    expect(await repo.getOutfit(saved.id)).toEqual(saved);
+    expect(await new DemoRepository({ store }).getOutfit(saved.id)).toEqual(saved);
+    expect(await repo.listItems()).toEqual(beforeItems);
+    await repo.deleteOutfit(saved.id);
+    expect(await new DemoRepository({ store }).getOutfit(saved.id)).toBeNull();
+    expect(await repo.listItems()).toEqual(beforeItems);
+  });
+
+  it("preserves an empty Lookbook after all outfits are deleted and rejects missing ids", async () => {
+    const store = memoryStore();
+    const repo = new DemoRepository({ store });
+    for (const outfit of await repo.listOutfits()) await repo.deleteOutfit(outfit.id);
+    expect(await new DemoRepository({ store }).listOutfits()).toEqual([]);
+    await expect(repo.deleteOutfit("missing")).rejects.toMatchObject({ code: "not_found" });
+    expect(await repo.listItems()).toHaveLength(DEMO_ITEMS.length);
+  });
 });

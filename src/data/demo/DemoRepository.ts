@@ -153,10 +153,12 @@ export class DemoRepository implements Repository {
   }
 
   async deleteOutfit(id: string): Promise<void> {
-    const before = this.outfits.length;
-    this.outfits = this.outfits.filter((o) => o.id !== id);
-    if (this.outfits.length === before) throw new RepositoryError("not_found", "That outfit no longer exists.");
-    this.persistState();
+    const nextOutfits = this.outfits.filter((o) => o.id !== id);
+    if (nextOutfits.length === this.outfits.length) throw new RepositoryError("not_found", "That outfit no longer exists.");
+    if (!this.persistState([...this.itemsById.values()], nextOutfits)) {
+      throw new RepositoryError("storage", "This look could not be deleted because the demo changes could not be saved. Try again.");
+    }
+    this.outfits = nextOutfits;
   }
 
   /* ---------------- images ---------------- */
