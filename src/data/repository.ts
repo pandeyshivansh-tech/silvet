@@ -4,7 +4,7 @@
  * and on a signed-in user's Supabase data without changes.
  *
  * Implementations:
- *   - DemoRepository     (./demo)     — bundled sample wardrobe, read-only items, session-only outfits
+ *   - DemoRepository     (./demo)     — bundled sample wardrobe, session-only item and outfit changes
  *   - SupabaseRepository (./supabase) — WS6
  */
 import type { ItemInput, OutfitInputValues } from "@/domain/schemas";

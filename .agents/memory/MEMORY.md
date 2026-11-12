@@ -1,0 +1,1 @@
+- [Demo wardrobe scope](demo-wardrobe-scope.md) — demo clothing changes are temporary; photo previews must not imply stored uploads.

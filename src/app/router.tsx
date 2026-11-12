@@ -24,6 +24,9 @@ import OnboardingPage from "@/features/onboarding/OnboardingPage";
 const sharedWardrobeRoutes = [
   { index: true, element: <Navigate to="wardrobe" replace /> },
   { path: "wardrobe", element: <WardrobePage /> },
+  // Static segments rank above the item identifier route.
+  { path: "wardrobe/new", element: <AddItemsPage /> },
+  { path: "wardrobe/:itemId/edit", element: <EditItemPage /> },
   { path: "wardrobe/:itemId", element: <ItemDetailPage /> },
   { path: "style", element: <StylePage /> },
   { path: "lookbook", element: <LookbookPage /> },
@@ -50,9 +53,6 @@ export const router = createBrowserRouter([
         path: "/app",
         element: <AppLayout />,
         children: [
-          // Static segments rank above dynamic ones, so /app/wardrobe/new never matches :itemId.
-          { path: "wardrobe/new", element: <AddItemsPage /> },
-          { path: "wardrobe/:itemId/edit", element: <EditItemPage /> },
           { path: "profile", element: <ProfilePage /> },
           ...sharedWardrobeRoutes,
         ],

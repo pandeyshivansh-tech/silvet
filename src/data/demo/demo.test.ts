@@ -4,7 +4,6 @@ import { checkOutfit } from "@/domain/outfitRules";
 import { isIndianWear } from "@/domain/taxonomy";
 import { DEMO_ITEMS, DEMO_OUTFITS } from "./demoWardrobe";
 import { DemoRepository } from "./DemoRepository";
-import { isRepositoryError } from "../repository";
 
 function memoryStore() {
   const data = new Map<string, string>();
@@ -47,14 +46,90 @@ describe("DemoRepository", () => {
     expect(await repo.getItem("nope")).toBe(null);
   });
 
-  it("refuses item writes with a demo_read_only error", async () => {
+  it("creates, edits and deletes items across repository instances in the same session", async () => {
+    const store = memoryStore();
+    const repo = new DemoRepository({ store });
+    const input = itemInputSchema.parse({ name: "  My kurta  ", categorySlug: "tops", subcategorySlug: "kurtas", primaryColor: "white" });
+    const created = await repo.createItem({ input });
+    expect(created.name).toBe("My kurta");
+    expect(created.image).toBeNull();
+    const reopened = new DemoRepository({ store });
+    expect(await reopened.getItem(created.id)).toEqual(created);
+    const updated = await reopened.updateItem({ id: created.id, input: { ...input, name: "Favourite kurta" } });
+    expect(updated.createdAt).toBe(created.createdAt);
+    expect((await new DemoRepository({ store }).getItem(created.id))?.name).toBe("Favourite kurta");
+    await reopened.deleteItem(created.id);
+    expect(await reopened.getItem(created.id)).toBeNull();
+    expect(await new DemoRepository({ store }).getItem(created.id)).toBeNull();
+    expect(await new DemoRepository({ store: memoryStore() }).getItem(created.id)).toBeNull();
+  });
+
+  it("validates writes and reports field errors without changing the wardrobe", async () => {
     const repo = new DemoRepository({ store: null });
-    try {
-      await repo.deleteItem();
-      expect("should have thrown").toBe("thrown");
-    } catch (e) {
-      expect(isRepositoryError(e) && e.code).toBe("demo_read_only");
-    }
+    const input = itemInputSchema.parse({ name: "Valid", categorySlug: "tops" });
+    await expect(repo.createItem({ input: { ...input, name: "" } })).rejects.toMatchObject({
+      code: "invalid", fieldErrors: { name: "Give this piece a name." },
+    });
+    await expect(repo.createItem({ input: { ...input, subcategorySlug: "jeans" } })).rejects.toMatchObject({
+      code: "invalid", fieldErrors: { subcategorySlug: "That type doesn't belong to the chosen category." },
+    });
+    expect(await repo.listItems()).toHaveLength(DEMO_ITEMS.length);
+    await expect(repo.updateItem({ id: DEMO_ITEMS[0]!.id, input: { ...input, name: "" } })).rejects.toMatchObject({ code: "invalid" });
+    await expect(repo.updateItem({ id: "missing", input })).rejects.toMatchObject({ code: "not_found" });
+    await expect(repo.deleteItem("missing")).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("rejects demo photo uploads honestly, preserving the existing item", async () => {
+    const repo = new DemoRepository({ store: null });
+    const original = DEMO_ITEMS[0]!;
+    const input = itemInputSchema.parse(original);
+    const image = { full: new Blob(["photo"]), thumb: new Blob(["thumb"]), mimeType: "image/webp" };
+    await expect(repo.createItem({ input, image })).rejects.toMatchObject({ code: "storage" });
+    await expect(repo.updateItem({ id: original.id, input, image })).rejects.toMatchObject({ code: "storage" });
+    expect(await repo.getItem(original.id)).toEqual(original);
+  });
+
+  it("keeps or removes an existing photo according to update semantics", async () => {
+    const item = { ...DEMO_ITEMS[0]!, image: { path: "demo/photo.webp", thumbPath: "demo/thumb.webp" } };
+    const repo = new DemoRepository({ items: [item], store: null });
+    const input = itemInputSchema.parse(item);
+    expect((await repo.updateItem({ id: item.id, input })).image).toEqual(item.image);
+    expect((await repo.updateItem({ id: item.id, input, image: null })).image).toBeNull();
+  });
+
+  it("preserves saved outfits with removed-piece placeholders after deleting a garment", async () => {
+    const store = memoryStore();
+    const repo = new DemoRepository({ store });
+    const outfit = DEMO_OUTFITS[0]!;
+    const id = outfit.pieces.find((piece) => piece.itemId)?.itemId;
+    expect(id).toBeTruthy();
+    await repo.deleteItem(id!);
+    const saved = await repo.getOutfit(outfit.id);
+    expect(saved?.pieces.some((piece) => piece.itemId === null)).toBe(true);
+    expect(await repo.countOutfitsUsingItem(id!)).toBe(0);
+    const reopened = new DemoRepository({ store });
+    expect(await reopened.getItem(id!)).toBeNull();
+    expect(await reopened.getOutfit(outfit.id)).toEqual(saved);
+    // The bundled seed remains untouched.
+    expect(DEMO_ITEMS.some((item) => item.id === id)).toBe(true);
+    expect(DEMO_OUTFITS[0]!.pieces.some((piece) => piece.itemId === id)).toBe(true);
+  });
+
+  it("keeps writes available in memory when browser storage is blocked or full", async () => {
+    const repo = new DemoRepository({
+      store: { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("full"); } },
+    });
+    const created = await repo.createItem({ input: itemInputSchema.parse({ name: "In memory", categorySlug: "tops" }) });
+    expect(await repo.getItem(created.id)).toEqual(created);
+    await repo.deleteItem(created.id);
+    expect(await repo.getItem(created.id)).toBeNull();
+  });
+
+  it("persists an empty wardrobe instead of reseeding it on refresh", async () => {
+    const store = memoryStore();
+    const repo = new DemoRepository({ items: [DEMO_ITEMS[0]!], outfits: [], store });
+    await repo.deleteItem(DEMO_ITEMS[0]!.id);
+    expect(await new DemoRepository({ store }).listItems()).toEqual([]);
   });
 
   it("creates, updates and deletes outfits and persists them for the session", async () => {

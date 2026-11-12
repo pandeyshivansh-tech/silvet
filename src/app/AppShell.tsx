@@ -43,9 +43,9 @@ function DemoBanner() {
       <div className="flex items-center justify-between gap-3 px-5 py-2.5 sm:px-8 lg:px-10">
         <p className="min-w-0 truncate text-caption">
           <span className="mr-2 inline-block size-1.5 rounded-full bg-citron align-middle" aria-hidden="true" />
-          <span className="font-medium">Sample wardrobe</span>
-          <span className="sm:hidden"> · illustrated</span>
-          <span className="hidden sm:inline">. Illustrated pieces, not your clothes. Looks you save last until you close the tab.</span>
+          <span className="font-medium">Demo wardrobe</span>
+          <span className="sm:hidden"> · session only</span>
+          <span className="hidden sm:inline">. Pieces and looks stay in this tab only. Photos are not stored.</span>
         </p>
         <Link to={paths.signUp()} className="shrink-0 text-caption font-medium underline decoration-chalk/40 underline-offset-4 hover:decoration-chalk">
           <span className="sm:hidden">Start yours</span>

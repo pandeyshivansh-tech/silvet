@@ -1,18 +1,18 @@
 /**
  * DemoRepository — the sample wardrobe used before sign-up (D3).
  *
- * - Items are read-only: adding/editing/deleting clothes throws `demo_read_only`, and the UI
- *   responds with an honest "create an account to add your own clothes" prompt.
+ * - Clothing changes and outfits are session-only. Photos cannot be uploaded in demo mode.
  * - Outfits are fully functional but session-only: saved to sessionStorage when available,
  *   otherwise in memory. They disappear when the tab closes, and the UI says so.
  */
-import { outfitInputSchema, fieldErrors } from "@/domain/schemas";
+import { itemInputSchema, outfitInputSchema, fieldErrors } from "@/domain/schemas";
 import { checkOutfit, normalisePieces } from "@/domain/outfitRules";
 import type { ClothingItem, ImageRef, ImageUrls, Outfit } from "@/domain/types";
-import { RepositoryError, type Repository, type SaveOutfitArgs } from "../repository";
+import { RepositoryError, type CreateItemArgs, type UpdateItemArgs, type Repository, type SaveOutfitArgs } from "../repository";
 import { DEMO_ITEMS, DEMO_OUTFITS } from "./demoWardrobe";
 
 const STORAGE_KEY = "silvet.demo.outfits.v1";
+const ITEMS_STORAGE_KEY = "silvet.demo.items.v1";
 
 type KeyValueStore = Pick<Storage, "getItem" | "setItem">;
 
@@ -28,12 +28,9 @@ function safeSessionStorage(): KeyValueStore | null {
   }
 }
 
-const readOnly = () =>
-  new RepositoryError("demo_read_only", "This is the sample wardrobe. Create a free account to add your own clothes.");
-
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `demo-look-${crypto.randomUUID()}`;
-  return `demo-look-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+function newId(prefix = "demo-look"): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `${prefix}-${crypto.randomUUID()}`;
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export interface DemoRepositoryOptions {
@@ -48,16 +45,14 @@ export interface DemoRepositoryOptions {
 export class DemoRepository implements Repository {
   readonly kind = "demo" as const;
 
-  private readonly items: readonly ClothingItem[];
   private readonly itemsById: Map<string, ClothingItem>;
   private readonly store: KeyValueStore | null;
   private readonly assetBase: string;
   private outfits: Outfit[];
 
   constructor(options: DemoRepositoryOptions = {}) {
-    this.items = options.items ?? DEMO_ITEMS;
-    this.itemsById = new Map(this.items.map((i) => [i.id, i]));
     this.store = options.store === undefined ? safeSessionStorage() : options.store;
+    this.itemsById = new Map(this.loadItems(options.items ?? DEMO_ITEMS).map((i) => [i.id, i]));
     this.assetBase = options.assetBase ?? "/";
     this.outfits = this.load(options.outfits ?? DEMO_OUTFITS);
   }
@@ -65,23 +60,46 @@ export class DemoRepository implements Repository {
   /* ---------------- items ---------------- */
 
   async listItems(): Promise<ClothingItem[]> {
-    return [...this.items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...this.itemsById.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 
   async getItem(id: string): Promise<ClothingItem | null> {
     return this.itemsById.get(id) ?? null;
   }
 
-  async createItem(): Promise<ClothingItem> {
-    throw readOnly();
+  async createItem({ input, image }: CreateItemArgs): Promise<ClothingItem> {
+    const parsed = itemInputSchema.safeParse(input);
+    if (!parsed.success) throw new RepositoryError("invalid", "Please check the piece details.", fieldErrors(parsed.error));
+    if (image) throw new RepositoryError("storage", "Photos cannot be stored in the demo. Save this piece without a photo.");
+    const now = new Date().toISOString();
+    const created: ClothingItem = { ...parsed.data, id: newId("demo-item"), image: null, createdAt: now, updatedAt: now };
+    this.itemsById.set(created.id, created);
+    this.persistItems();
+    return created;
   }
 
-  async updateItem(): Promise<ClothingItem> {
-    throw readOnly();
+  async updateItem({ id, input, image }: UpdateItemArgs): Promise<ClothingItem> {
+    const existing = this.itemsById.get(id);
+    if (!existing) throw new RepositoryError("not_found", "That piece no longer exists.");
+    const parsed = itemInputSchema.safeParse(input);
+    if (!parsed.success) throw new RepositoryError("invalid", "Please check the piece details.", fieldErrors(parsed.error));
+    if (image) throw new RepositoryError("storage", "Photos cannot be stored in the demo. Save this piece without a photo.");
+    const updated: ClothingItem = {
+      ...existing, ...parsed.data, image: image === null ? null : existing.image, updatedAt: new Date().toISOString(),
+    };
+    this.itemsById.set(id, updated);
+    this.persistItems();
+    return updated;
   }
 
-  async deleteItem(): Promise<void> {
-    throw readOnly();
+  async deleteItem(id: string): Promise<void> {
+    if (!this.itemsById.delete(id)) throw new RepositoryError("not_found", "That piece no longer exists.");
+    this.outfits = this.outfits.map((outfit) => ({
+      ...outfit,
+      pieces: outfit.pieces.map((piece) => piece.itemId === id ? { ...piece, itemId: null } : piece),
+    }));
+    this.persistItems();
+    this.persist();
   }
 
   async countOutfitsUsingItem(id: string): Promise<number> {
@@ -144,6 +162,44 @@ export class DemoRepository implements Repository {
   }
 
   /* ---------------- persistence ---------------- */
+
+  private loadItems(seed: readonly ClothingItem[]): ClothingItem[] {
+    if (!this.store) return [...seed];
+    try {
+      const raw = this.store.getItem(ITEMS_STORAGE_KEY);
+      if (!raw) return [...seed];
+      const data: unknown = JSON.parse(raw);
+      if (!Array.isArray(data)) return [...seed];
+      const loaded: ClothingItem[] = [];
+      for (const value of data) {
+        if (!value || typeof value !== "object") return [...seed];
+        const row = value as Record<string, unknown>;
+        const parsed = itemInputSchema.safeParse(row);
+        if (!parsed.success || typeof row.id !== "string" || !row.id ||
+          typeof row.createdAt !== "string" || typeof row.updatedAt !== "string") return [...seed];
+        let image: ImageRef | null = null;
+        if (row.image !== null) {
+          if (!row.image || typeof row.image !== "object") return [...seed];
+          const ref = row.image as Record<string, unknown>;
+          if (typeof ref.path !== "string" || typeof ref.thumbPath !== "string") return [...seed];
+          image = { path: ref.path, thumbPath: ref.thumbPath };
+        }
+        loaded.push({ ...parsed.data, id: row.id, image, createdAt: row.createdAt, updatedAt: row.updatedAt });
+      }
+      return loaded;
+    } catch {
+      return [...seed];
+    }
+  }
+
+  private persistItems(): void {
+    if (!this.store) return;
+    try {
+      this.store.setItem(ITEMS_STORAGE_KEY, JSON.stringify([...this.itemsById.values()]));
+    } catch {
+      // Like outfits, blocked/full sessionStorage keeps changes in memory for this visit.
+    }
+  }
 
   private load(seed: readonly Outfit[]): Outfit[] {
     if (!this.store) return [...seed];

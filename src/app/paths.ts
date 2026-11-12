@@ -14,9 +14,8 @@ export const paths = {
 
   wardrobe: (base: Base) => `${base}/wardrobe`,
   item: (base: Base, id: string) => `${base}/wardrobe/${encodeURIComponent(id)}`,
-  /** App only — the demo wardrobe is read-only. */
-  addItems: () => "/app/wardrobe/new",
-  editItem: (id: string) => `/app/wardrobe/${encodeURIComponent(id)}/edit`,
+  addItems: (base: Base = "/app") => `${base}/wardrobe/new`,
+  editItem: (id: string, base: Base = "/app") => `${base}/wardrobe/${encodeURIComponent(id)}/edit`,
 
   /** Builder + Ideas. `?outfit=<id>` opens a saved outfit for editing; `?mode=ideas` opens Ideas. */
   style: (base: Base, opts?: { outfitId?: string; mode?: "build" | "ideas" }) => {
