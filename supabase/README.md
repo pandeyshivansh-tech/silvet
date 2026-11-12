@@ -1,8 +1,10 @@
-# SILVET Supabase foundation — Milestone 2
+# SILVET Supabase — foundation and authentication
 
-This directory is a foundation, not a live-data switch. `DemoLayout` still creates
-`DemoRepository`; auth remains signed out/unconfigured. No auth screens, profile
-flows or `SupabaseRepository` are implemented here.
+Milestone 2 provides the data foundation. Milestone 3 connects Supabase Auth and
+the existing profiles table only. `DemoLayout` still creates `DemoRepository`;
+no wardrobe/outfit data is switched to Supabase and no sample data is copied into
+accounts. `/app/profile` is the minimal authenticated landing page; other `/app`
+feature paths show honest readiness screens until SupabaseRepository is approved.
 
 ## Public client configuration
 
@@ -13,10 +15,10 @@ flows or `SupabaseRepository` are implemented here.
   These values become public browser code, even when entered through Secrets.
 - Vite validates any supplied configuration before serving/building to prevent
   embedding an elevated key. Both variables can be absent for a demo-only setup.
-- `getSupabaseClient()` is lazy. Nothing in the running demo imports/calls it.
-  It creates a typed singleton only when future integration explicitly asks for
-  it. It uses PKCE, isolated session storage key `silvet.auth.v1`, and SDK-managed
-  user JWT headers. URL callback handling is deliberately disabled until auth work.
+- `getSupabaseClient()` is lazy; AuthProvider initializes the shared account SDK.
+  It uses PKCE, browser localStorage under the auth-specific key `silvet.auth.v1`,
+  and SDK-managed user JWT headers. URL auto-detection remains disabled:
+  `/auth/callback` explicitly exchanges a code once and removes URL parameters.
 - Validation checks key shape/legacy role, not signature, project association,
   revocation or connectivity. No remote calls or credential checks have been made.
 
@@ -83,7 +85,12 @@ cleanup must coordinate image deletion through the Storage API (not SQL deletes
 from `storage.objects`). Storage lifecycle, signed URL resolution and orphan
 cleanup are not implemented in this milestone.
 
-## Apply to your Supabase project — manual, not performed here
+## Migration history and application reference
+
+The project owner confirmed on 2026-11-12 that all three initial migrations were
+successfully applied to hosted Supabase and the five tables/private bucket exist.
+Do not reapply them to that project. No SQL or policies were changed for
+Milestone 3. The following instructions are reference for a fresh/staging project.
 
 1. Confirm you selected the intended SILVET project. Review/test on a disposable
    staging project first. These migrations expect new SILVET tables and
@@ -107,9 +114,70 @@ cleanup are not implemented in this milestone.
    signed-URL behavior against staging. Dashboard SQL Editor runs with elevated
    privileges and is **not** evidence that RLS protects end-user requests.
 
-No dashboard schema changes, auth users, storage objects or bucket have been
-created remotely by this milestone. Auth provider setup, redirect URLs, onboarding,
-profile provisioning and switching data repositories belong to later milestones.
+## Authentication dashboard configuration — manual
+
+1. Under Supabase Auth providers, enable email/password signup and **Confirm email**.
+   Match the password policy to the form's minimum of eight characters (stronger
+   server requirements are still authoritative).
+2. Configure Site URL and allow the exact `<approved-app-origin>/auth/callback`
+   URL for development and, later, the actual published origin. Use a standalone
+   app tab consistently: localStorage/PKCE are origin- and browser-specific.
+   Do not substitute a preview parent origin or localhost for the user's actual
+   origin. The app derives callback URLs from `window.location.origin`.
+3. Configure a custom SMTP sender for general users. Supabase's default sender
+   is restricted to project-team addresses with a very low hourly limit; it is
+   not a production email service. Review confirmation expiry and resend limits.
+4. In the signup confirmation email template, retain the confirmation link
+   (`{{ .ConfirmationURL }}`) and include the email code (`{{ .Token }}`).
+   Example body: `<p><a href="{{ .ConfirmationURL }}">Confirm your email</a></p>
+   <p>Or enter this code in SILVET: {{ .Token }}</p>`.
+   Disable email-link tracking that rewrites the URL.
+5. Ensure the Data API exposes `profiles` to the authenticated role with the
+   existing grants and owner RLS. Do not change RLS or add elevated credentials.
+6. Google is disabled in the UI until public Auth settings report it enabled.
+   A settings/network failure also leaves it unavailable; email auth remains
+   usable. Reload the sign-in page after dashboard configuration changes.
+
+### Google Cloud / Supabase provider
+
+- Create/configure a Google OAuth Web application, consent branding, audience
+  and test users if the OAuth app remains in testing.
+- Add approved app JavaScript origins per Google's setup requirements.
+- Set the Google authorized redirect URI to the callback shown in Supabase's
+  Google-provider settings: `<supabase-project-origin>/auth/v1/callback`.
+  This is NOT SILVET's `/auth/callback` URL.
+- Enter the Google Client ID/Client Secret **only in Supabase's Google provider
+  settings**, then enable it. Do not put that secret in Replit frontend variables.
+- SILVET requests normal Google identity sign-in only, no Google API/offline access.
+- Validate consent and redirects using an actual Google account before claiming
+  hosted OAuth works. The implementation's browser tests intercept this flow.
+
+### Session, verification and profile behavior
+
+- Verified sessions are checked through Supabase `getUser`, not trusted solely
+  from localStorage. Auth state changes and automatic refresh use the existing
+  SDK; profile work runs separately from the SDK's auth-event callbacks.
+- PKCE links need the browser/device where signup began. Email-code fallback
+  supports confirmation in a different browser. Codes/links expire and are single-use.
+  Starting overlapping PKCE flows may invalidate an earlier flow's verifier;
+  use a fresh flow or email-code fallback if that happens.
+- The check-email panel is reachable through **Verify your email** on either auth
+  page, including after reload. Passwords/codes are not persisted by the UI.
+- Profile provisioning occurs after verified authentication. Insert-on-conflict
+  does nothing, then retrieves the existing row; login never resets preferences.
+  Failures show retry/sign-out rather than fabricating a profile.
+- Onboarding uses existing styles, optional name and optional selections. Skip
+  writes only completion time, preserving all existing saved preference fields.
+- Logout uses `scope: 'local'` (this browser, including its tabs), not every
+  device. Account-specific profile cache is cleared; demo storage is not cleared.
+  Revocation does not retroactively invalidate all previously issued access JWTs.
+- Redirect continuations accept only known same-origin `/app` destinations.
+- Password reset, account deletion/editing, full SupabaseRepository and image
+  lifecycle remain outside this milestone.
+
+No hosted auth accounts or emails are created by the mocked browser tests.
+Real email delivery, verification, hosted profile provisioning/RLS and Google
+consent must be verified separately with approved test accounts after setup.
 
 ## Verification
 
@@ -117,6 +185,7 @@ profile provisioning and switching data repositories belong to later milestones.
 npm run check
 npm run build
 node scripts/test-supabase-security.mjs
+node --experimental-websocket scripts/auth.browser.mjs
 ```
 
 The last command requires local PostgreSQL 15+ tools (`initdb`, `pg_ctl`, `psql`).
@@ -129,3 +198,9 @@ or keys and cleans up the cluster afterward.
 tables and functions. **Never apply anything in `tests/` to a real project.**
 The SQL tests prove PostgreSQL policy/data behavior, not the hosted Auth, REST,
 Storage service, MIME enforcement, signed-URL or key-connectivity behavior.
+
+The auth browser suite runs Chromium with a temporary browser profile, synthetic
+identities and intercepted Supabase HTTP responses. It covers the real UI and SDK
+protocol, not the hosted identity service. Run the existing Studio, Lookbook and
+Ideas suites as regression checks too. No test account passwords or tokens belong
+in tracked fixtures, logs or documentation; fixture credentials are synthetic.

@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { Outlet, ScrollRestoration } from "react-router";
+import { Outlet, ScrollRestoration, useLocation } from "react-router";
 import { DemoRepository, RepositoryProvider } from "@/data";
 import { RequireAuth } from "@/lib/auth/RequireAuth";
 import { AppShell } from "./AppShell";
+import { RequireOnboarding } from "@/lib/auth/RequireOnboarding";
+import { AuthFrame } from "@/features/auth/AuthFrame";
+import { ButtonLink } from "@/ui";
+import { paths } from "./paths";
 
 /** Top-level layout: scroll restoration for every route. */
 export function RootLayout() {
@@ -24,15 +28,20 @@ export function DemoLayout() {
   );
 }
 
-/**
- * /app/* — the signed-in wardrobe.
- * WS6 adds the SupabaseRepository here: <RepositoryProvider repository={supabaseRepository}>.
- * Until auth is wired, RequireAuth redirects every visit to sign-in, so no screen here can run without data.
- */
+/** Account-only until SupabaseRepository is implemented; never pass sample data as personal data. */
 export function AppLayout() {
+  const location = useLocation();
   return (
     <RequireAuth>
-      <AppShell />
+      <RequireOnboarding>
+        {location.pathname.replace(/\/$/, "") === paths.profile() ? <Outlet /> :
+          <AuthFrame eyebrow="Your account" title="Your account is ready" description="Your personal wardrobe, Studio and Lookbook are coming next. Nothing from the demo has been copied into your account.">
+            <div className="flex flex-col gap-4">
+              <ButtonLink to={paths.profile()}>Your profile</ButtonLink>
+              <ButtonLink to={paths.wardrobe("/demo")} variant="secondary">Explore the sample wardrobe</ButtonLink>
+            </div>
+          </AuthFrame>}
+      </RequireOnboarding>
     </RequireAuth>
   );
 }

@@ -1,30 +1,27 @@
-/**
- * Auth state for the whole app.
- *
- * WS0 STATUS: interface only. Supabase Auth (email/password + Google) is wired in WS6 by
- * replacing the internals of AuthProvider — consumers (useAuth, RequireAuth) do not change.
- * Until then the app honestly reports "signed-out" and /app routes redirect to sign-in.
- */
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-
-export type AuthStatus = "loading" | "signed-out" | "signed-in";
-
-export interface AuthUser {
-  id: string;
-  email: string | null;
-}
-
-export interface AuthState {
-  status: AuthStatus;
-  user: AuthUser | null;
-  /** False until WS6 connects Supabase. Screens use this to explain, not to fake success. */
-  isConfigured: boolean;
-}
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { createAuthController, type AuthController, type AuthSnapshot } from "./authController";
+export type { AuthStatus, AuthUser } from "./authController";
+export type AuthState = AuthSnapshot & Pick<AuthController, "signIn" | "signUp" | "signOut" | "resend" | "verifyEmail" | "signInWithGoogle" | "finishCallback" | "retry" | "checkProviders">;
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const value = useMemo<AuthState>(() => ({ status: "signed-out", user: null, isConfigured: false }), []);
+  const [controller] = useState(() => createAuthController());
+  const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  const queryClient = useQueryClient();
+  const previousUser = useRef<string | null>(null);
+  useEffect(() => controller.start(), [controller]);
+  useEffect(() => {
+    const previous = previousUser.current;
+    const current = snapshot.user?.id ?? null;
+    if (previous && previous !== current) {
+      void queryClient.cancelQueries({ queryKey: ["profile", previous] });
+      queryClient.removeQueries({ queryKey: ["profile", previous] });
+    }
+    previousUser.current = current;
+  }, [snapshot.user?.id, queryClient]);
+  const value = useMemo<AuthState>(() => ({ ...controller, ...snapshot }), [controller, snapshot]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

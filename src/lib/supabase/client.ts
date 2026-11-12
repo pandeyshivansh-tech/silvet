@@ -5,9 +5,9 @@ import type { Database } from "./database.types";
 let client: SupabaseClient<Database> | undefined;
 
 /**
- * Lazy by design. DemoLayout and AuthProvider do not import/call this module.
+ * Lazy by design. AuthProvider initializes accounts; DemoRepository remains independent.
  * The existing ANON_KEY variable accepts the modern public sb_publishable key.
- * No Authorization header override: the SDK supplies user JWTs after future login.
+ * No Authorization header override: the SDK supplies user JWTs after login.
  */
 export function getSupabaseClient(): SupabaseClient<Database> {
   if (!client) {

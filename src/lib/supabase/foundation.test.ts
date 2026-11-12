@@ -96,11 +96,9 @@ describe("schema/domain parity (SQL execution is verified separately)", () => {
       season: SEASONS.map((value) => value.slug),
     });
   });
-  it("leaves the demo and unwired auth provider independent of the new client", () => {
+  it("keeps the demo independent of live data and preserves explicit callback handling", () => {
     expect(readFileSync("src/app/layouts.tsx", "utf8")).toContain("new DemoRepository()");
-    expect(readFileSync("src/lib/auth/AuthProvider.tsx", "utf8")).toContain('status: "signed-out"');
-    for (const file of ["src/app/layouts.tsx", "src/lib/auth/AuthProvider.tsx"]) {
-      expect(readFileSync(file, "utf8")).not.toMatch(/from ["'].*supabase\/client/);
-    }
+    expect(readFileSync("src/app/layouts.tsx", "utf8")).not.toContain("new SupabaseRepository");
+    expect(readFileSync("src/lib/supabase/client.ts", "utf8")).toContain("detectSessionInUrl: false");
   });
 });

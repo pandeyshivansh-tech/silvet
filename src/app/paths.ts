@@ -8,9 +8,9 @@ export const paths = {
   landing: () => "/",
   styleguide: () => "/styleguide",
   signIn: (next?: string) => (next ? `/auth/sign-in?next=${encodeURIComponent(next)}` : "/auth/sign-in"),
-  signUp: () => "/auth/sign-up",
+  signUp: (next?: string) => next ? `/auth/sign-up?next=${encodeURIComponent(next)}` : "/auth/sign-up",
   authCallback: () => "/auth/callback",
-  onboarding: () => "/onboarding",
+  onboarding: (next?: string) => next ? `/onboarding?next=${encodeURIComponent(next)}` : "/onboarding",
 
   wardrobe: (base: Base) => `${base}/wardrobe`,
   item: (base: Base, id: string) => `${base}/wardrobe/${encodeURIComponent(id)}`,
