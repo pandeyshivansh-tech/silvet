@@ -5,11 +5,29 @@ import { isIndianWear } from "@/domain/taxonomy";
 import { DEMO_ITEMS, DEMO_OUTFITS } from "./demoWardrobe";
 import { DemoRepository } from "./DemoRepository";
 
-function memoryStore() {
-  const data = new Map<string, string>();
+function memoryStore(initial: Record<string, string> = {}) {
+  const data = new Map<string, string>(Object.entries(initial));
   return {
     getItem: (k: string) => data.get(k) ?? null,
     setItem: (k: string, v: string) => void data.set(k, v),
+  };
+}
+
+function memoryStoreWithOneFailedWrite() {
+  const data = new Map<string, string>();
+  let failNextWrite = false;
+  return {
+    store: {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (failNextWrite) {
+          failNextWrite = false;
+          throw new Error("simulated quota failure");
+        }
+        data.set(key, value);
+      },
+    },
+    failNextWrite: () => { failNextWrite = true; },
   };
 }
 
@@ -115,10 +133,55 @@ describe("DemoRepository", () => {
     expect(DEMO_OUTFITS[0]!.pieces.some((piece) => piece.itemId === id)).toBe(true);
   });
 
-  it("keeps writes available in memory when browser storage is blocked or full", async () => {
-    const repo = new DemoRepository({
-      store: { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("full"); } },
+  it("rejects a delete write failure without changing memory or the last committed snapshot", async () => {
+    const { store, failNextWrite } = memoryStoreWithOneFailedWrite();
+    const repo = new DemoRepository({ store });
+    const seedLook = DEMO_OUTFITS[0]!;
+    const itemId = seedLook.pieces.find((piece) => piece.itemId !== null)!.itemId!;
+    const saved = await repo.saveOutfit({ input: { name: "Committed look", pieces: seedLook.pieces } });
+
+    failNextWrite();
+    await expect(repo.deleteItem(itemId)).rejects.toMatchObject({ code: "storage" });
+
+    // The failed write does not report success or partially apply the delete.
+    expect(await repo.getItem(itemId)).not.toBeNull();
+    expect((await repo.getOutfit(saved.id))?.pieces.some((piece) => piece.itemId === itemId)).toBe(true);
+    expect((await repo.getOutfit(saved.id))?.pieces.some((piece) => piece.itemId === null)).toBe(false);
+
+    const reopened = new DemoRepository({ store });
+    expect(await reopened.getItem(itemId)).not.toBeNull();
+    expect((await reopened.getOutfit(saved.id))?.pieces.some((piece) => piece.itemId === itemId)).toBe(true);
+    expect((await reopened.getOutfit(saved.id))?.pieces.some((piece) => piece.itemId === null)).toBe(false);
+  });
+
+  it("recovers a legacy saved outfit whose referenced item is missing as a removed placeholder", async () => {
+    const seedLook = DEMO_OUTFITS[0]!;
+    const missingId = seedLook.pieces.find((piece) => piece.itemId !== null)!.itemId!;
+    const bottom = DEMO_ITEMS.find((item) => item.categorySlug === "bottoms")!;
+    const legacyOutfit = {
+      ...seedLook,
+      id: "legacy-look-with-missing-item",
+      pieces: [
+        { slot: "top" as const, itemId: missingId, position: 0 },
+        { slot: "bottom" as const, itemId: bottom.id, position: 1 },
+      ],
+    };
+    const store = memoryStore({
+      "silvet.demo.items.v1": JSON.stringify(DEMO_ITEMS.filter((item) => item.id !== missingId)),
+      "silvet.demo.outfits.v1": JSON.stringify([legacyOutfit]),
     });
+
+    const repo = new DemoRepository({ store });
+    const recovered = await repo.getOutfit(legacyOutfit.id);
+    expect(recovered).not.toBeNull();
+    expect(recovered?.pieces).toEqual([
+      { slot: "top", itemId: null, position: 0 },
+      { slot: "bottom", itemId: bottom.id, position: 1 },
+    ]);
+  });
+
+  it("keeps repository mutations available in memory when session storage is unavailable", async () => {
+    const repo = new DemoRepository({ store: null });
     const created = await repo.createItem({ input: itemInputSchema.parse({ name: "In memory", categorySlug: "tops" }) });
     expect(await repo.getItem(created.id)).toEqual(created);
     await repo.deleteItem(created.id);

@@ -151,9 +151,47 @@ describe("checkOutfit", () => {
     expect(checkOutfit([...base, p("accessory", "watch"), p("accessory", "bag"), p("accessory", "hoops")], lookup).valid).toBe(false);
   });
 
-  it("treats a removed-item placeholder as allowed but not completing the base", () => {
+  it("does not let a removed base placeholder complete separates", () => {
     const r = checkOutfit([p("top", null), p("bottom", "jeans")], lookup);
     expect(r.valid).toBe(true);
+    expect(r.complete).toBe(false);
+    expect(r.issues.map((issue) => issue.code)).toContain("missing_base");
+  });
+
+  it("allows separates alongside a removed one-piece placeholder", () => {
+    const r = checkOutfit([p("one_piece", null), p("top", "tee"), p("bottom", "jeans")], lookup);
+    expect(r).toEqual({ valid: true, complete: true, issues: [] });
+  });
+
+  it("does not count removed accessories against the two available slots", () => {
+    const r = checkOutfit([
+      p("top", "tee"),
+      p("bottom", "jeans"),
+      p("accessory", null),
+      p("accessory", "watch"),
+      p("accessory", "bag"),
+    ], lookup);
+    expect(r).toEqual({ valid: true, complete: true, issues: [] });
+  });
+
+  it("allows a live piece to replace a removed piece in its original slot", () => {
+    const r = checkOutfit([
+      p("top", null, 0),
+      p("top", "tee", 1),
+      p("bottom", "jeans", 2),
+    ], lookup);
+    expect(r).toEqual({ valid: true, complete: true, issues: [] });
+  });
+
+  it("still rejects two live garments in one slot when a placeholder is also present", () => {
+    const r = checkOutfit([
+      p("top", null, 0),
+      p("top", "tee", 1),
+      p("top", "kurta", 2),
+      p("bottom", "jeans", 3),
+    ], lookup);
+    expect(r.valid).toBe(false);
+    expect(r.issues.some((issue) => issue.code === "slot_occupied")).toBe(true);
   });
 
   it("explains what is missing", () => {

@@ -44,11 +44,14 @@ export function checkOutfit(pieces: readonly OutfitPiece[], lookup: ItemLookup):
   const bySlot = new Map<Slot, OutfitPiece[]>();
 
   for (const piece of pieces) {
+    // Deleted garments remain in saved outfits as visual placeholders, but they are
+    // not selections and must not affect capacity, conflicts, or completeness.
+    if (piece.itemId === null) continue;
+
     const list = bySlot.get(piece.slot) ?? [];
     list.push(piece);
     bySlot.set(piece.slot, list);
 
-    if (piece.itemId === null) continue; // removed item placeholder — allowed in saved outfits
     if (seen.has(piece.itemId)) {
       issues.push({ code: "duplicate_item", message: "The same piece is in this outfit twice.", slot: piece.slot });
     }

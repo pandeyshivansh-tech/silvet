@@ -13,6 +13,7 @@ import { DEMO_ITEMS, DEMO_OUTFITS } from "./demoWardrobe";
 
 const STORAGE_KEY = "silvet.demo.outfits.v1";
 const ITEMS_STORAGE_KEY = "silvet.demo.items.v1";
+const STATE_STORAGE_KEY = "silvet.demo.state.v1";
 
 type KeyValueStore = Pick<Storage, "getItem" | "setItem">;
 
@@ -52,9 +53,11 @@ export class DemoRepository implements Repository {
 
   constructor(options: DemoRepositoryOptions = {}) {
     this.store = options.store === undefined ? safeSessionStorage() : options.store;
-    this.itemsById = new Map(this.loadItems(options.items ?? DEMO_ITEMS).map((i) => [i.id, i]));
+    const snapshot = this.loadSnapshot();
+    const items = snapshot?.items ?? this.loadItems(options.items ?? DEMO_ITEMS);
+    this.itemsById = new Map(items.map((i) => [i.id, i]));
     this.assetBase = options.assetBase ?? "/";
-    this.outfits = this.load(options.outfits ?? DEMO_OUTFITS);
+    this.outfits = snapshot?.outfits ?? this.load(options.outfits ?? DEMO_OUTFITS);
   }
 
   /* ---------------- items ---------------- */
@@ -74,7 +77,7 @@ export class DemoRepository implements Repository {
     const now = new Date().toISOString();
     const created: ClothingItem = { ...parsed.data, id: newId("demo-item"), image: null, createdAt: now, updatedAt: now };
     this.itemsById.set(created.id, created);
-    this.persistItems();
+    this.persistState();
     return created;
   }
 
@@ -88,18 +91,23 @@ export class DemoRepository implements Repository {
       ...existing, ...parsed.data, image: image === null ? null : existing.image, updatedAt: new Date().toISOString(),
     };
     this.itemsById.set(id, updated);
-    this.persistItems();
+    this.persistState();
     return updated;
   }
 
   async deleteItem(id: string): Promise<void> {
-    if (!this.itemsById.delete(id)) throw new RepositoryError("not_found", "That piece no longer exists.");
-    this.outfits = this.outfits.map((outfit) => ({
+    if (!this.itemsById.has(id)) throw new RepositoryError("not_found", "That piece no longer exists.");
+    const nextItems = new Map(this.itemsById);
+    nextItems.delete(id);
+    const nextOutfits = this.outfits.map((outfit) => ({
       ...outfit,
       pieces: outfit.pieces.map((piece) => piece.itemId === id ? { ...piece, itemId: null } : piece),
     }));
-    this.persistItems();
-    this.persist();
+    if (!this.persistState([...nextItems.values()], nextOutfits)) {
+      throw new RepositoryError("storage", "This piece could not be removed because the demo changes could not be saved. Try again.");
+    }
+    this.itemsById.delete(id);
+    this.outfits = nextOutfits;
   }
 
   async countOutfitsUsingItem(id: string): Promise<number> {
@@ -134,13 +142,13 @@ export class DemoRepository implements Repository {
       if (!existing) throw new RepositoryError("not_found", "That outfit no longer exists.");
       const updated: Outfit = { ...existing, ...parsed.data, pieces, updatedAt: now };
       this.outfits = this.outfits.map((o) => (o.id === id ? updated : o));
-      this.persist();
+      this.persistState();
       return updated;
     }
 
     const created: Outfit = { id: newId(), ...parsed.data, pieces, createdAt: now, updatedAt: now };
     this.outfits = [created, ...this.outfits];
-    this.persist();
+    this.persistState();
     return created;
   }
 
@@ -148,7 +156,7 @@ export class DemoRepository implements Repository {
     const before = this.outfits.length;
     this.outfits = this.outfits.filter((o) => o.id !== id);
     if (this.outfits.length === before) throw new RepositoryError("not_found", "That outfit no longer exists.");
-    this.persist();
+    this.persistState();
   }
 
   /* ---------------- images ---------------- */
@@ -163,41 +171,70 @@ export class DemoRepository implements Repository {
 
   /* ---------------- persistence ---------------- */
 
+  private loadSnapshot(): { items: ClothingItem[]; outfits: Outfit[] } | null {
+    if (!this.store) return null;
+    try {
+      const raw = this.store.getItem(STATE_STORAGE_KEY);
+      if (!raw) return null;
+      const value: unknown = JSON.parse(raw);
+      if (!value || typeof value !== "object") return null;
+      const snapshot = value as Record<string, unknown>;
+      if (snapshot.version !== 1) return null;
+      const items = this.parseItems(snapshot.items);
+      if (!items) return null;
+      const outfits = this.parseOutfits(snapshot.outfits, new Set(items.map((item) => item.id)));
+      return outfits ? { items, outfits } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private parseItems(data: unknown): ClothingItem[] | null {
+    if (!Array.isArray(data)) return null;
+    const loaded: ClothingItem[] = [];
+    for (const value of data) {
+      if (!value || typeof value !== "object") return null;
+      const row = value as Record<string, unknown>;
+      const parsed = itemInputSchema.safeParse(row);
+      if (!parsed.success || typeof row.id !== "string" || !row.id ||
+        typeof row.createdAt !== "string" || typeof row.updatedAt !== "string") return null;
+      let image: ImageRef | null = null;
+      if (row.image !== null) {
+        if (!row.image || typeof row.image !== "object") return null;
+        const ref = row.image as Record<string, unknown>;
+        if (typeof ref.path !== "string" || typeof ref.thumbPath !== "string") return null;
+        image = { path: ref.path, thumbPath: ref.thumbPath };
+      }
+      loaded.push({ ...parsed.data, id: row.id, image, createdAt: row.createdAt, updatedAt: row.updatedAt });
+    }
+    return loaded;
+  }
+
+  private parseOutfits(data: unknown, itemIds: ReadonlySet<string>): Outfit[] | null {
+    if (!Array.isArray(data)) return null;
+    const loaded: Outfit[] = [];
+    for (const value of data) {
+      if (!value || typeof value !== "object") return null;
+      const row = value as Record<string, unknown>;
+      const parsed = outfitInputSchema.safeParse(row);
+      if (!parsed.success || typeof row.id !== "string" || !row.id ||
+        typeof row.createdAt !== "string" || typeof row.updatedAt !== "string") return null;
+      const pieces = parsed.data.pieces.map((piece) =>
+        piece.itemId !== null && !itemIds.has(piece.itemId) ? { ...piece, itemId: null } : piece,
+      );
+      loaded.push({ ...parsed.data, id: row.id, createdAt: row.createdAt, updatedAt: row.updatedAt, pieces });
+    }
+    return loaded;
+  }
+
   private loadItems(seed: readonly ClothingItem[]): ClothingItem[] {
     if (!this.store) return [...seed];
     try {
       const raw = this.store.getItem(ITEMS_STORAGE_KEY);
       if (!raw) return [...seed];
-      const data: unknown = JSON.parse(raw);
-      if (!Array.isArray(data)) return [...seed];
-      const loaded: ClothingItem[] = [];
-      for (const value of data) {
-        if (!value || typeof value !== "object") return [...seed];
-        const row = value as Record<string, unknown>;
-        const parsed = itemInputSchema.safeParse(row);
-        if (!parsed.success || typeof row.id !== "string" || !row.id ||
-          typeof row.createdAt !== "string" || typeof row.updatedAt !== "string") return [...seed];
-        let image: ImageRef | null = null;
-        if (row.image !== null) {
-          if (!row.image || typeof row.image !== "object") return [...seed];
-          const ref = row.image as Record<string, unknown>;
-          if (typeof ref.path !== "string" || typeof ref.thumbPath !== "string") return [...seed];
-          image = { path: ref.path, thumbPath: ref.thumbPath };
-        }
-        loaded.push({ ...parsed.data, id: row.id, image, createdAt: row.createdAt, updatedAt: row.updatedAt });
-      }
-      return loaded;
+      return this.parseItems(JSON.parse(raw)) ?? [...seed];
     } catch {
       return [...seed];
-    }
-  }
-
-  private persistItems(): void {
-    if (!this.store) return;
-    try {
-      this.store.setItem(ITEMS_STORAGE_KEY, JSON.stringify([...this.itemsById.values()]));
-    } catch {
-      // Like outfits, blocked/full sessionStorage keeps changes in memory for this visit.
     }
   }
 
@@ -206,23 +243,30 @@ export class DemoRepository implements Repository {
     try {
       const raw = this.store.getItem(STORAGE_KEY);
       if (!raw) return [...seed];
-      const parsed: unknown = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [...seed];
-      // Keep only outfits whose pieces still reference known demo items (or removed placeholders).
-      return (parsed as Outfit[]).filter(
-        (o) => typeof o?.id === "string" && Array.isArray(o.pieces) && o.pieces.every((p) => p.itemId === null || this.itemsById.has(p.itemId)),
-      );
+      // Keep legacy saved looks, converting references lost by the old two-key
+      // persistence flow into the same placeholders used for explicit item deletes.
+      return this.parseOutfits(JSON.parse(raw), new Set(this.itemsById.keys())) ?? [...seed];
     } catch {
       return [...seed];
     }
   }
 
-  private persist(): void {
-    if (!this.store) return;
+  private persistState(
+    items: readonly ClothingItem[] = [...this.itemsById.values()],
+    outfits: readonly Outfit[] = this.outfits,
+  ): boolean {
+    if (!this.store) return true;
     try {
-      this.store.setItem(STORAGE_KEY, JSON.stringify(this.outfits));
+      // A single storage write keeps wardrobe changes and removed-item references
+      // in one atomic snapshot. A failed write leaves the previous snapshot intact.
+      this.store.setItem(STATE_STORAGE_KEY, JSON.stringify({
+        version: 1,
+        items,
+        outfits,
+      }));
+      return true;
     } catch {
-      // Storage full or blocked — outfits still live in memory for this session.
+      return false;
     }
   }
 }
