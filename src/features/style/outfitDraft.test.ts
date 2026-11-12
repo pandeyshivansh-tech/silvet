@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createSuggestionDraft } from "./outfitDraft";
 import { DEMO_ITEMS, DEMO_OUTFITS } from "@/data/demo/demoWardrobe";
 import { OUTFIT_NAME_MAX } from "@/domain/schemas";
 import { MAX_ACCESSORIES, slotOf } from "@/domain/taxonomy";
@@ -17,6 +18,19 @@ const accessories = DEMO_ITEMS.filter((item) => slotOf(item) === "accessory");
 const separates = () => selectDraftPiece(selectDraftPiece(createDraft(), { slot: "top" }, top), { slot: "bottom" }, bottom);
 
 describe("outfit draft", () => {
+  it("hands off ideas as cloned, unsaved suggestion drafts without borrowed identity", () => {
+    for (const outfit of DEMO_OUTFITS) {
+      const seed = createSuggestionDraft(outfit.pieces);
+      expect(seed.source).toBe("suggestion");
+      expect(seed.name).toBe("");
+      expect(seed.notes).toBeNull();
+      expect(seed).not.toHaveProperty("id");
+      expect(seed.pieces).toEqual(outfit.pieces);
+      expect(seed.pieces).not.toBe(outfit.pieces);
+      expect(seed.pieces[0]).not.toBe(outfit.pieces[0]);
+      expect(validateDraft(seed, DEMO_ITEMS).canSave).toBe(true);
+    }
+  });
   it("starts empty, incomplete, and not saveable", () => {
     const result = validateDraft(createDraft(), DEMO_ITEMS);
     expect(result.check.complete).toBe(false);

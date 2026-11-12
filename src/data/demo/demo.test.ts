@@ -55,6 +55,23 @@ describe("demo wardrobe data", () => {
 });
 
 describe("DemoRepository", () => {
+  it.each(["create", "update"] as const)("keeps memory and stored looks unchanged after failed %s, then retries with suggestion source", async (operation) => {
+    const { store, failNextWrite } = memoryStoreWithOneFailedWrite();
+    const repo = new DemoRepository({ store });
+    const wardrobeBefore = await repo.listItems();
+    const original = await repo.saveOutfit({ input: { name: "Original", pieces: DEMO_OUTFITS[0]!.pieces } });
+    const before = await repo.listOutfits();
+    const input = { name: "Suggested", source: "suggestion" as const, pieces: DEMO_OUTFITS[1]!.pieces };
+    const args = { id: operation === "update" ? original.id : undefined, input };
+    failNextWrite();
+    await expect(repo.saveOutfit(args)).rejects.toMatchObject({ code: "storage" });
+    expect(await repo.listOutfits()).toEqual(before);
+    expect(await new DemoRepository({ store }).listOutfits()).toEqual(before);
+    const saved = await repo.saveOutfit(args);
+    expect(saved.source).toBe("suggestion");
+    expect((await new DemoRepository({ store }).getOutfit(saved.id))?.source).toBe("suggestion");
+    expect(await repo.listItems()).toEqual(wardrobeBefore);
+  });
   it("lists items and finds one by id", async () => {
     const repo = new DemoRepository({ store: null });
     const items = await repo.listItems();

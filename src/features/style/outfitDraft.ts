@@ -30,6 +30,16 @@ export function createDraft(outfit?: Outfit): OutfitDraft {
   };
 }
 
+/** An idea starts a NEW unsaved look, never an edit of an existing saved outfit. */
+export function createSuggestionDraft(pieces: readonly OutfitPiece[]): OutfitDraft {
+  const cloned = pieces.map((piece) => ({ ...piece }));
+  return {
+    name: "", notes: null, source: "suggestion",
+    mode: cloned.some((piece) => piece.slot === "one_piece" && piece.itemId) ? "one_piece" : "separates",
+    pieces: cloned,
+  };
+}
+
 function targetIndex(pieces: readonly OutfitPiece[], target: DraftTarget): number {
   let occurrence = 0;
   return pieces.findIndex((piece) =>

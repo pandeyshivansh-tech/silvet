@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeftRight, Check, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { ClothingItem, Outfit } from "@/domain/types";
@@ -13,13 +13,20 @@ import { OutfitPreview } from "./OutfitPreview";
 
 interface Props {
   outfit?: Outfit;
+  seed?: OutfitDraft;
+  ref?: Ref<EditorGuard>;
   items: readonly ClothingItem[];
   imageByItem: Map<string, { thumb: string; full: string }>;
   base: Base;
 }
 
-export function OutfitEditor({ outfit, items, imageByItem, base }: Props) {
-  const initialDraft = useMemo(() => createDraft(outfit), [outfit]);
+export interface EditorGuard {
+  isDirty: () => boolean;
+  isSaving: () => boolean;
+}
+
+export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Props) {
+  const initialDraft = useMemo(() => outfit ? createDraft(outfit) : seed ?? createDraft(), [outfit, seed]);
   const initialRef = useRef<OutfitDraft | null>(null);
   if (!initialRef.current) initialRef.current = initialDraft;
   const baselineRef = useRef<string | null>(null);
@@ -36,6 +43,10 @@ export function OutfitEditor({ outfit, items, imageByItem, base }: Props) {
   const validation = useMemo(() => validateDraft(draft, items), [draft, items]);
   const hasChanges = JSON.stringify(draftInput(draft)) !== baselineRef.current;
   const isSaving = saveOutfit.isPending;
+  useImperativeHandle(ref, () => ({
+    isDirty: () => hasChanges || (!savedId.current && (draft.pieces.length > 0 || draft.name.length > 0)),
+    isSaving: () => savingLock.current,
+  }), [hasChanges, draft.pieces.length, draft.name]);
   const accessorySlots = Array.from({
     length: Math.max(MAX_ACCESSORIES, draft.pieces.filter((piece) => piece.slot === "accessory").length),
   }, (_, index) => index);

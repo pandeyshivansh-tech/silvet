@@ -141,14 +141,20 @@ export class DemoRepository implements Repository {
       const existing = this.outfits.find((o) => o.id === id);
       if (!existing) throw new RepositoryError("not_found", "That outfit no longer exists.");
       const updated: Outfit = { ...existing, ...parsed.data, pieces, updatedAt: now };
-      this.outfits = this.outfits.map((o) => (o.id === id ? updated : o));
-      this.persistState();
+      const nextOutfits = this.outfits.map((o) => (o.id === id ? updated : o));
+      if (!this.persistState([...this.itemsById.values()], nextOutfits)) {
+        throw new RepositoryError("storage", "This look could not be saved. Your previous saved looks are unchanged. Try again.");
+      }
+      this.outfits = nextOutfits;
       return updated;
     }
 
     const created: Outfit = { id: newId(), ...parsed.data, pieces, createdAt: now, updatedAt: now };
-    this.outfits = [created, ...this.outfits];
-    this.persistState();
+    const nextOutfits = [created, ...this.outfits];
+    if (!this.persistState([...this.itemsById.values()], nextOutfits)) {
+      throw new RepositoryError("storage", "This look could not be saved. Your previous saved looks are unchanged. Try again.");
+    }
+    this.outfits = nextOutfits;
     return created;
   }
 
