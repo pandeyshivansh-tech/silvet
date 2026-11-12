@@ -36,6 +36,16 @@ auth.rows.set(accountA, profile(accountA, true));
 auth.rows.set(accountB, profile(accountB, true));
 await auth.install(h.page);
 const { evaluate, navigate, check, contains, click, fill, reload } = h;
+async function checkAsync(label, expression) {
+  let passed = false;
+  for (let attempt = 0; attempt < 80; attempt++) {
+    try { if (await evaluate(expression)) { passed = true; break; } } catch { /* The Vite module is still loading. */ }
+    await pause();
+  }
+  assert(passed, label);
+  h.checks.push(label);
+  console.log("PASS:", label);
+}
 async function open(path) {
   await evaluate(`history.pushState({},'',${JSON.stringify(path)});window.dispatchEvent(new PopStateEvent('popstate'))`);
   await pause(200);
@@ -56,6 +66,27 @@ try {
   await navigate("/app/wardrobe/new");
   await check("Authenticated add form offers camera and file selection", "Boolean(document.querySelector('input[capture=environment]'))");
   await fill("Name", "Private photo kurta");
+  await click("Back to wardrobe");
+  await check("Unsaved wardrobe edits require confirmation", "Boolean(document.querySelector('[role=alertdialog]')) && document.body.innerText.includes('Leave unsaved changes?')");
+  await click("Keep editing");
+  await check("Keeping the form preserves unsaved wardrobe values", `location.pathname==='/app/wardrobe/new' && document.querySelector('input[autocomplete="off"]').value==='Private photo kurta'`);
+  await checkAsync("Browser processing re-encodes JPEG metadata into smaller proportional WebP images", `import('/src/lib/images.ts').then(async ({prepareImage}) => {
+    const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=600;
+    const context=canvas.getContext('2d');context.fillStyle='#315a8a';context.fillRect(0,0,1200,600);
+    const jpeg=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.95));
+    if(!jpeg)return false;
+    const source=new Uint8Array(await jpeg.arrayBuffer());
+    const payload=new TextEncoder().encode('Exif\\\\0\\\\0GPSLatitude=51.5;GPSLongitude=-0.1');
+    const segment=new Uint8Array([255,225,(payload.length+2)>>8,(payload.length+2)&255,...payload]);
+    const tagged=new File([source.slice(0,2),segment,source.slice(2)],'tagged.jpg',{type:'image/jpeg'});
+    const prepared=await prepareImage(tagged);
+    const [full,thumb]=await Promise.all([createImageBitmap(prepared.full),createImageBitmap(prepared.thumb)]);
+    const bytes=new TextDecoder().decode(await prepared.full.arrayBuffer());
+    const ok=prepared.mimeType==='image/webp' && prepared.full.type==='image/webp' && prepared.thumb.type==='image/webp' &&
+      full.width===1200 && full.height===600 && thumb.width===400 && thumb.height===200 &&
+      prepared.thumb.size<prepared.full.size && !bytes.includes('GPSLatitude');
+    full.close();thumb.close();return ok;
+  })`);
   await evaluate(`(() => { const el=document.querySelector('select[name=categorySlug]');el.value='tops';el.dispatchEvent(new Event('change',{bubbles:true})); })()`);
   await photo("image/gif");
   await check("Unsupported formats are rejected before uploading", contains("Choose a JPEG, PNG or WebP"));
@@ -83,6 +114,12 @@ try {
   await check("A fresh signed URL recovers a previously failed image", `Boolean(document.querySelector('img[src*="fixture-${focusedCount + 1}"]'))`);
   await open(`/app/wardrobe/${item.id}/edit`);
   await check("Edit form loads the existing private photo", "Boolean(document.querySelector('img[src*=\"/object/sign/\"]'))");
+  await fill("Name", "Unsaved garment edit");
+  await click("Cancel");
+  await check("Unsaved wardrobe edits are protected when editing an existing piece", "Boolean(document.querySelector('[role=alertdialog]')) && document.body.innerText.includes('Leave unsaved changes?')");
+  await click("Keep editing");
+  await check("Keeping an edit form retains its changes", `location.pathname==='/app/wardrobe/${item.id}/edit' && document.querySelector('input[autocomplete="off"]').value==='Unsaved garment edit'`);
+  await fill("Name", "Private photo kurta");
   await photo();
   data.state.failWrites = true;
   await click("Save changes");

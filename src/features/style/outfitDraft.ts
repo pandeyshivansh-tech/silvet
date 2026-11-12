@@ -91,5 +91,7 @@ export function validateDraft(draft: OutfitDraft, items: readonly ClothingItem[]
   const parsed = outfitInputSchema.safeParse(draftInput(draft));
   const nameError = parsed.success ? null :
     parsed.error.issues.find((issue) => issue.path[0] === "name")?.message ?? null;
-  return { check, nameError, canSave: check.valid && check.complete && parsed.success };
+  const notesError = parsed.success ? null :
+    parsed.error.issues.find((issue) => issue.path[0] === "notes")?.message ?? null;
+  return { check, nameError, notesError, canSave: check.valid && check.complete && parsed.success };
 }

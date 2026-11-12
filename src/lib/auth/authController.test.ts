@@ -15,11 +15,13 @@ function setup() {
     getUser: vi.fn(async () => ({ data: { user: user() as User | null }, error: null as unknown })),
     onAuthStateChange: vi.fn((listener: typeof event) => { event = listener; return { data: { subscription: { unsubscribe: vi.fn() } } }; }),
     signInWithPassword: vi.fn(async () => ({ data: { session: session() }, error: null as unknown })),
-    signUp: vi.fn(async () => ({ data: { session: null }, error: null as unknown })),
+    signUp: vi.fn(async () => ({ data: { session: null as Session | null }, error: null as unknown })),
     signOut: vi.fn(async () => ({ error: null as unknown })),
     resend: vi.fn(async () => ({ error: null as unknown })),
     verifyOtp: vi.fn(async () => ({ data: { session: session() }, error: null as unknown })),
-    exchangeCodeForSession: vi.fn(async () => ({ data: { session: session() }, error: null as unknown })),
+    exchangeCodeForSession: vi.fn(async () => ({ data: { session: session(), redirectType: null as string | null }, error: null as unknown })),
+    resetPasswordForEmail: vi.fn(async () => ({ data: {}, error: null as unknown })),
+    updateUser: vi.fn(async () => ({ data: { user: user() }, error: null as unknown })),
     signInWithOAuth: vi.fn(async () => ({ error: null as unknown })),
   };
   const controller = createAuthController(() => ({ auth }) as unknown as SupabaseClient<Database>);
@@ -29,6 +31,63 @@ function setup() {
   return { auth, controller, getListener: () => event, event: (name: AuthChangeEvent, value: Session | null) => event(name, value) };
 }
 describe("authentication controller", () => {
+  it("requests recovery with a same-origin redirect and validates email", async () => {
+    const { controller, auth } = setup(); await tick();
+    await controller.requestPasswordReset(" a@example.com ");
+    expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@example.com", { redirectTo: "https://app.example.com/auth/update-password" });
+    await expect(controller.requestPasswordReset("invalid")).rejects.toThrow();
+    expect(auth.resetPasswordForEmail).toHaveBeenCalledTimes(1);
+  });
+  it("rejects ordinary sign-in codes as password recovery proof", async () => {
+    const { controller, auth } = setup(); await tick();
+    await expect(controller.finishRecovery("ordinary")).rejects.toThrow(/not a password reset link/);
+    await expect(controller.updatePassword("newpassword")).rejects.toThrow(/reset link/);
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+  it("consumes recovery once and permits one password update for the verified account", async () => {
+    const { controller, auth } = setup(); await tick();
+    auth.exchangeCodeForSession.mockResolvedValue({ data: { session: session(), redirectType: "recovery" }, error: null });
+    await Promise.all([controller.finishRecovery("recovery"), controller.finishRecovery("recovery")]);
+    auth.getSession.mockResolvedValue({ data: { session: session() }, error: null });
+    expect(auth.exchangeCodeForSession).toHaveBeenCalledOnce();
+    await expect(controller.updatePassword("short")).rejects.toThrow();
+    await controller.updatePassword("new password");
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: "new password" });
+    await expect(controller.updatePassword("another password")).rejects.toThrow(/reset link/);
+  });
+  it("retains recovery after a network failure so the user can retry", async () => {
+    const { controller, auth } = setup(); await tick();
+    auth.exchangeCodeForSession.mockResolvedValue({ data: { session: session(), redirectType: "recovery" }, error: null });
+    await controller.finishRecovery("recovery");
+    auth.getSession.mockResolvedValue({ data: { session: session() }, error: null });
+    auth.updateUser.mockResolvedValueOnce({ data: { user: user() }, error: new TypeError("network") });
+    await expect(controller.updatePassword("new password")).rejects.toThrow(/connection/);
+    await controller.updatePassword("new password");
+    expect(auth.updateUser).toHaveBeenCalledTimes(2);
+  });
+  it("disallows recovery after logout or an account switch", async () => {
+    const { controller, auth, event } = setup(); await tick();
+    auth.exchangeCodeForSession.mockResolvedValue({ data: { session: session(), redirectType: "recovery" }, error: null });
+    await controller.finishRecovery("recovery");
+    auth.getSession.mockResolvedValue({ data: { session: session("account-b") }, error: null });
+    event("SIGNED_IN", session("account-b")); await tick();
+    await expect(controller.updatePassword("new password")).rejects.toThrow(/reset link/);
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+  it("rejects a changed server identity before changing the password", async () => {
+    const { controller, auth } = setup(); await tick();
+    auth.exchangeCodeForSession.mockResolvedValue({ data: { session: session(), redirectType: "recovery" }, error: null });
+    await controller.finishRecovery("recovery");
+    auth.getSession.mockResolvedValue({ data: { session: session("account-b") }, error: null });
+    await expect(controller.updatePassword("new password")).rejects.toThrow(/expired or changed/);
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+  it("reports expired recovery codes safely", async () => {
+    const { controller, auth } = setup(); await tick();
+    auth.exchangeCodeForSession.mockResolvedValue({ data: { session: session(), redirectType: null }, error: { code: "flow_state_expired" } });
+    await expect(controller.finishRecovery("expired")).rejects.toThrow(/expired/);
+    expect(controller.getSnapshot().recoveryUserId).toBeFalsy();
+  });
   it("restores signed-out state without blocking public screens", async () => {
     const { controller } = setup(); await tick();
     expect(controller.getSnapshot()).toMatchObject({ status: "signed-out", isConfigured: true });
@@ -61,16 +120,42 @@ describe("authentication controller", () => {
     oldListener("SIGNED_OUT", null);
     expect(controller.getSnapshot().status).toBe("signed-in");
   });
-  it("waits for verification after signup without provisioning a profile", async () => {
+  it("signs up immediately when Supabase returns a validated session", async () => {
     const { auth, controller } = setup(); await tick();
-    expect(await controller.signUp("a@example.com", "password")).toEqual({ needsVerification: true });
-    expect(auth.getUser).not.toHaveBeenCalled();
-    expect(controller.getSnapshot().user).toBeNull();
+    auth.signUp.mockResolvedValue({ data: { session: session() }, error: null });
+    expect(await controller.signUp("New name", "a@example.com", "password")).toEqual({ status: "signed_in" });
+    expect(auth.signUp).toHaveBeenCalledWith({
+      email: "a@example.com",
+      password: "password",
+      options: { emailRedirectTo: "https://app.example.com/auth/callback", data: { display_name: "New name" } },
+    });
+    expect(auth.getUser).toHaveBeenCalledWith("fixture-account-a");
+    expect(controller.getSnapshot()).toMatchObject({ status: "signed-in", user: { id: "account-a" } });
   });
-  it("does not reveal existing signup accounts", async () => {
+  it("reports missing signup sessions without pretending to authenticate", async () => {
+    const { auth, controller } = setup(); await tick();
+    expect(await controller.signUp("New name", "a@example.com", "password")).toEqual({ status: "session_unavailable" });
+    expect(auth.getUser).not.toHaveBeenCalled();
+    expect(controller.getSnapshot()).toMatchObject({ status: "signed-out", user: null });
+  });
+  it("does not accept a signup session the Auth server says is unverified", async () => {
+    const { auth, controller } = setup(); await tick();
+    auth.signUp.mockResolvedValue({ data: { session: session() }, error: null });
+    auth.getUser.mockResolvedValue({ data: { user: user("account-a", false) }, error: null });
+    expect(await controller.signUp("New name", "a@example.com", "password")).toEqual({ status: "session_unavailable" });
+    expect(controller.getSnapshot()).toMatchObject({ status: "signed-out", user: null });
+  });
+  it("handles an existing signup account without revealing its existence", async () => {
     const { auth, controller } = setup(); await tick();
     auth.signUp.mockResolvedValue({ data: { session: null }, error: { code: "user_already_exists" } });
-    expect(await controller.signUp("a@example.com", "password")).toEqual({ needsVerification: true });
+    expect(await controller.signUp("New name", "a@example.com", "password")).toEqual({ status: "session_unavailable" });
+    expect(controller.getSnapshot()).toMatchObject({ status: "signed-out", user: null, error: null });
+  });
+  it("validates credentials and establishes a session during login", async () => {
+    const { auth, controller } = setup(); await tick();
+    await controller.signIn("a@example.com", "password");
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "a@example.com", password: "password" });
+    expect(controller.getSnapshot()).toMatchObject({ status: "signed-in", user: { id: "account-a" } });
   });
   it("uses signup resend with a same-origin callback", async () => {
     const { auth, controller } = setup(); await tick();
@@ -90,7 +175,7 @@ describe("authentication controller", () => {
   });
   it("rejects expired callbacks with a safe message", async () => {
     const { auth, controller } = setup(); await tick();
-    auth.exchangeCodeForSession.mockResolvedValue({ data: { session: session() }, error: { code: "flow_state_expired" } });
+    auth.exchangeCodeForSession.mockResolvedValue({ data: { session: session(), redirectType: null }, error: { code: "flow_state_expired" } });
     await expect(controller.finishCallback("expired")).rejects.toThrow(/expired/);
   });
   it("signs out locally and handles cross-tab sign-out", async () => {

@@ -99,7 +99,7 @@ describe("schema/domain parity (SQL execution is verified separately)", () => {
   });
   it("keeps the demo independent of live data and preserves explicit callback handling", () => {
     expect(readFileSync("src/app/layouts.tsx", "utf8")).toContain("new DemoRepository()");
-    expect(readFileSync("src/app/layouts.tsx", "utf8")).toContain("new SupabaseRepository(user.id)");
+    expect(readFileSync("src/app/AccountProduct.tsx", "utf8")).toContain("new SupabaseRepository(user.id)");
     expect(readFileSync("src/lib/supabase/client.ts", "utf8")).toContain("detectSessionInUrl: false");
   });
   it("keeps atomic-save standalone outerwear and accessory capacity aligned with the domain", () => {

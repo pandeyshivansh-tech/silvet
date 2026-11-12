@@ -55,6 +55,18 @@ export function evaluate(
   add("occasion", occasionMatches, `${occasionMatches.map((item) => item.name).join(", ")} ${occasionMatches.length === 1 ? "is" : "are"} tagged for ${labelOf.occasion(context.occasion).toLowerCase()}.`, occasionMatches.length * 4);
   const styleMatches = context.style ? selected.filter((item) => item.styleTags.includes(context.style!)) : [];
   add("style", styleMatches, `${styleMatches.map((item) => item.name).join(", ")} ${styleMatches.length === 1 ? "has" : "have"} your selected ${context.style ? labelOf.style(context.style).toLowerCase() : ""} style tag.`, styleMatches.length * 3);
+  const preferred = new Set(context.preferredStyles ?? []);
+  preferred.delete(context.style!); // Do not count an explicitly selected style twice.
+  const preferenceMatches = selected.filter((item) => item.styleTags.some((tag) => preferred.has(tag)));
+  if (preferenceMatches.length) {
+    score += preferenceMatches.reduce((sum, item) => sum + item.styleTags.filter((tag) => preferred.has(tag)).length * 2, 0);
+    const message = preferenceMatches.map((item) => `${item.name} (${item.styleTags.filter((tag) => preferred.has(tag)).map(labelOf.style).join(", ")})`).join(", ");
+    const existing = evidence.find((reason) => reason.kind === "style");
+    if (existing) {
+      existing.message += ` Saved preference matches: ${message}.`;
+      existing.itemIds = [...new Set([...existing.itemIds, ...preferenceMatches.map((item) => item.id)])];
+    } else evidence.push({ kind: "style", itemIds: preferenceMatches.map((item) => item.id), message: `Saved preference matches from garment style tags: ${message}.` });
+  }
   const indian = base.filter((item) => traditionOf(item) === "indian");
   const western = base.filter((item) => traditionOf(item) === "western");
   if (indian.length && western.length) {

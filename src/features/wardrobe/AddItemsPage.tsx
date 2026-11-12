@@ -50,9 +50,10 @@ export default function AddItemsPage() {
         initialPhoto={draft?.image}
         submitLabel="Save piece"
         loading={createItem.isPending}
-        onSave={async (input, image) => {
+        onSave={async (input, image, allowNavigation) => {
           const item = await createItem.mutateAsync({ input, image });
           toast.success("Piece added to your wardrobe.");
+          allowNavigation();
           navigate(paths.item(base, item.id));
         }}
       />

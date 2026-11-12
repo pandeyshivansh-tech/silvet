@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createAuthController, type AuthController, type AuthSnapshot } from "./authController";
 import { clearAccountCache } from "@/data/queryScope";
 export type { AuthStatus, AuthUser } from "./authController";
-export type AuthState = AuthSnapshot & Pick<AuthController, "signIn" | "signUp" | "signOut" | "resend" | "verifyEmail" | "signInWithGoogle" | "finishCallback" | "retry" | "checkProviders">;
+export type AuthState = AuthSnapshot & Pick<AuthController, "signIn" | "signUp" | "signOut" | "resend" | "verifyEmail" | "signInWithGoogle" | "finishCallback" | "retry" | "checkProviders" | "requestPasswordReset" | "finishRecovery" | "updatePassword">;
 
 const AuthContext = createContext<AuthState | null>(null);
 

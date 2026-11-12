@@ -2,7 +2,10 @@ import { z } from "zod";
 import { paths } from "@/app/paths";
 
 export const signInSchema = z.object({ email: z.string().trim().pipe(z.email()), password: z.string().min(1, "Enter your password.") });
-export const signUpSchema = signInSchema.extend({ password: z.string().min(8, "Use at least 8 characters.") });
+export const signUpSchema = signInSchema.extend({
+  displayName: z.string().trim().min(1, "Enter your name.").max(80, "Use no more than 80 characters."),
+  password: z.string().min(8, "Use at least 8 characters."),
+});
 export const emailCodeSchema = z.string().trim().regex(/^\d{6,10}$/, "Enter the code from your confirmation email.");
 const unsafePath = (value: string) => value.includes("\\") || [...value].some((character) => character.charCodeAt(0) <= 32);
 

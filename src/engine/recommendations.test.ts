@@ -29,6 +29,32 @@ function ready(items: Wardrobe, context = everyday, seen: string[] = []): Recomm
 }
 
 describe("first-class outfit structures", () => {
+  it("uses every saved style preference as a soft, metadata-backed boost", () => {
+    const top = garment("top", "shirts", { styleTags: ["minimal"] });
+    const bottom = garment("bottom", "jeans", { styleTags: ["fusion"] });
+    const plain = makeRecommendation(piecesFor([top, bottom]), [top, bottom], everyday)!;
+    const boosted = makeRecommendation(piecesFor([top, bottom]), [top, bottom], { ...everyday, preferredStyles: ["minimal", "fusion"] })!;
+    expect(boosted.score - plain.score).toBe(4);
+    const explanation = boosted.explanations.find((reason) => reason.kind === "style")!;
+    expect(explanation.itemIds).toEqual(["top", "bottom"]);
+    expect(explanation.message).toContain("Minimal");
+    expect(explanation.message).toContain("fusion");
+  });
+  it("deduplicates saved preferences and does not double-count the explicit style", () => {
+    const items = [garment("top", "shirts", { styleTags: ["minimal"] }), garment("bottom", "jeans")];
+    const explicit = makeRecommendation(piecesFor(items), items, { ...everyday, style: "minimal" })!;
+    const repeated = makeRecommendation(piecesFor(items), items, { ...everyday, style: "minimal", preferredStyles: ["minimal", "minimal"] })!;
+    expect(repeated.score).toBe(explicit.score);
+  });
+  it("does not exclude untagged outfits or mutate saved garments or preferences", () => {
+    const items = [garment("top", "kurtas"), garment("bottom", "jeans")];
+    const snapshot = JSON.stringify(items);
+    const preferredStyles = Object.freeze(["minimal", "fusion"] as const);
+    for (const item of items) { Object.freeze(item.styleTags); Object.freeze(item); }
+    const result = ready(Object.freeze(items), { ...everyday, preferredStyles });
+    expect(result.explanations.some((reason) => reason.kind === "style")).toBe(false);
+    expect(JSON.stringify(items)).toBe(snapshot);
+  });
   it.each([
     ["kurta + jeans", ["kurtas", "jeans"], "everyday"],
     ["kurta + churidar", ["kurtas", "churidars-salwars"], "festive"],

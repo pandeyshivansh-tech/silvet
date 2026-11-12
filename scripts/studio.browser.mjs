@@ -123,6 +123,13 @@ try {
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await send("Page.navigate", { url: `${origin}/demo/wardrobe?query=cream%20linen&category=tops&subcategory=shirts&color=cream&occasion=everyday&season=summer&style=minimal` });
+  await check("Wardrobe URL restores all active filters", `document.querySelector('input[aria-label="Search clothing by name"]').value==='cream linen' && [...document.querySelectorAll('select')].some(s=>s.value==='shirts') && [...document.querySelectorAll('select')].some(s=>s.value==='everyday') && [...document.querySelectorAll('select')].some(s=>s.value==='summer') && [...document.querySelectorAll('select')].some(s=>s.value==='minimal') && ${bodyContains("Cream linen shirt")}`);
+  await send("Page.reload");
+  await pause(700);
+  await check("Reload preserves shareable wardrobe filters", `location.search.includes('season=summer') && document.querySelector('input[aria-label="Search clothing by name"]').value==='cream linen' && ${bodyContains("Cream linen shirt")}`);
+  await click("Reset filters");
+  await check("Reset filters clears URL state and search", `location.search==='' && document.querySelector('input[aria-label="Search clothing by name"]').value===''`);
   await send("Page.navigate", { url: `${origin}/demo/style` });
   for (let tries = 0; tries < 60; tries++) {
     if (await evaluate(`Boolean(${findButton("Save this look")})`)) break;
@@ -169,6 +176,11 @@ try {
   await click("Straight blue jeans");
   const name = `Studio browser ${Date.now()}`;
   await input('input[placeholder="e.g. Friday at the gallery"]', name);
+  await input("textarea", "Remember the light jacket.");
+  await evaluate(`document.querySelector('a[href="/demo/wardrobe"]').click()`);
+  await check("Studio navigation shows unsaved-changes confirmation", `Boolean(document.querySelector('[role="alertdialog"]')) && ${bodyContains("Leave unsaved changes?")}`);
+  await click("Keep editing");
+  await check("Keeping Studio open preserves pieces, name, and editable notes", `${bodyContains("White chikankari kurta")} && document.querySelector('input[placeholder="e.g. Friday at the gallery"]').value===${JSON.stringify(name)} && document.querySelector('textarea').value==='Remember the light jacket.'`);
   await screenshot("desktop");
   await evaluate(`(() => { const b=${findButton("Save this look")}; b.click(); b.click(); })()`);
   await pause(1400);
@@ -178,7 +190,7 @@ try {
   await check("Successful save shows feedback", bodyContains("Your look is saved."));
   await send("Page.reload");
   await pause(1000);
-  await check("Reload retains name, garments, and unchanged-save protection", `${saveDisabled("Save changes")} && document.querySelector('input[placeholder="e.g. Friday at the gallery"]').value===${JSON.stringify(name)} && ${bodyContains("White chikankari kurta")}`);
+  await check("Reload retains name, notes, garments, and unchanged-save protection", `${saveDisabled("Save changes")} && document.querySelector('input[placeholder="e.g. Friday at the gallery"]').value===${JSON.stringify(name)} && document.querySelector('textarea').value==='Remember the light jacket.' && ${bodyContains("White chikankari kurta")}`);
   await input('input[placeholder="e.g. Friday at the gallery"]', `${name} edited`);
   await click("Replace top");
   await click("Mustard cotton kurta");

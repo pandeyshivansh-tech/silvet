@@ -1,5 +1,7 @@
 /** Exercises the actual compiled Node server without contacting hosted Supabase. */
 import assert from "node:assert/strict";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 const port = "5102";
@@ -21,6 +23,9 @@ try {
     assert.equal(response.status, 200);
     assert((await response.text()).includes('<div id="root">')); checks++;
   }
+  assert.equal((await fetch(`${origin}/styleguide`)).status, 200); checks++;
+  const assets = await readdir(join(process.cwd(), "dist", "assets"));
+  assert(!assets.some((name) => name.toLowerCase().includes("styleguide")), "Production build omits the development-only styleguide chunk"); checks++;
   const html = await (await fetch(origin)).text();
   const asset = html.match(/src="([^"]+\.js)"/)?.[1];
   assert(asset);

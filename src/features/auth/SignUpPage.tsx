@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { AuthFrame } from "./AuthFrame";
-import { VerificationPanel } from "./VerificationPanel";
 import { Button, TextField } from "@/ui";
 import { paths } from "@/app/paths";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -13,13 +12,15 @@ export default function SignUpPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const next = safeNext(searchParams.get("next"));
+  const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ displayName?: string; email?: string; password?: string }>({});
   const [error, setError] = useState("");
-  const [pendingVerification, setPendingVerification] = useState(false);
+  const [sessionUnavailable, setSessionUnavailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const lock = useRef(false);
+  const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
@@ -33,15 +34,17 @@ export default function SignUpPage() {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (lock.current) return;
-    const result = signUpSchema.safeParse({ email, password });
+    const result = signUpSchema.safeParse({ displayName, email, password });
     if (!result.success) {
       const nextErrors: typeof errors = {};
       for (const issue of result.error.issues) {
+        if (issue.path[0] === "displayName" && !nextErrors.displayName) nextErrors.displayName = issue.message;
         if (issue.path[0] === "email" && !nextErrors.email) nextErrors.email = issue.message;
         if (issue.path[0] === "password" && !nextErrors.password) nextErrors.password = issue.message;
       }
       setErrors(nextErrors);
-      if (nextErrors.email) emailRef.current?.focus();
+      if (nextErrors.displayName) nameRef.current?.focus();
+      else if (nextErrors.email) emailRef.current?.focus();
       else passwordRef.current?.focus();
       return;
     }
@@ -51,10 +54,10 @@ export default function SignUpPage() {
     setSubmitting(true);
     const submittedPassword = password;
     setPassword("");
-    void auth.signUp(result.data.email, submittedPassword, next)
-      .then(({ needsVerification }) => {
-        if (needsVerification) setPendingVerification(true);
-        else navigate(next, { replace: true });
+    void auth.signUp(result.data.displayName, result.data.email, submittedPassword, next)
+      .then(({ status }) => {
+        if (status === "signed_in") navigate(next, { replace: true });
+        else setSessionUnavailable(true);
       })
       .catch((reason: unknown) => setError(authError(reason).message))
       .finally(() => { lock.current = false; setSubmitting(false); });
@@ -62,13 +65,19 @@ export default function SignUpPage() {
 
   return (
     <AuthFrame eyebrow="Create account" title="A wardrobe, on your terms" description="Indian and Western fashion, side by side. Your style, your own space.">
-      {pendingVerification ? (
-        <VerificationPanel initialEmail={email} next={next} onVerified={() => navigate(next, { replace: true })} onClose={() => setPendingVerification(false)} />
+      {sessionUnavailable ? (
+        <section>
+          <h2 className="font-display text-look text-midnight">No sign-in session was returned</h2>
+          <p role="status" className="mt-3 text-body text-graphite-deep">SILVET has not signed you in, so your personal app is still locked. If Supabase sent an email, follow its instructions. For immediate signup, the project’s email-confirmation setting must be turned off.</p>
+          <p className="mt-5 text-body text-graphite-deep">You can also <Link className="text-midnight underline underline-offset-4" to={paths.signIn(next)}>try signing in</Link>.</p>
+        </section>
       ) : (
         <>
           {auth.error && <p role="alert" className="mb-5 border border-line bg-chalk-deep p-3 text-caption text-graphite-deep">{auth.error} The demo is still open to explore.</p>}
           {error && <p role="alert" className="mb-5 border border-danger p-3 text-caption text-danger">{error}</p>}
           <form noValidate onSubmit={submit} className="space-y-5">
+            <TextField ref={nameRef} label="Your name" requiredMark autoComplete="name" maxLength={80} value={displayName}
+              onChange={(event) => { setDisplayName(event.target.value); setErrors((old) => ({ ...old, displayName: undefined })); }} error={errors.displayName} />
             <TextField ref={emailRef} label="Email address" requiredMark type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => { setEmail(event.target.value); setErrors((old) => ({ ...old, email: undefined })); }} error={errors.email} />
             <TextField ref={passwordRef} label="Create a password" requiredMark type="password" autoComplete="new-password" value={password} onChange={(event) => { setPassword(event.target.value); setErrors((old) => ({ ...old, password: undefined })); }} error={errors.password} hint="At least 8 characters." />
             <Button type="submit" fullWidth disabled={!auth.isConfigured} loading={submitting} loadingLabel="Creating account">Create account</Button>
@@ -83,7 +92,6 @@ export default function SignUpPage() {
           }} leadingIcon={<span aria-hidden="true" className="font-medium">G</span>}>Continue with Google</Button>
           {auth.googleAvailable !== true && <p className="mt-3 text-caption text-graphite-deep" role="status">{auth.googleAvailable === null ? "Checking Google availability…" : "Google sign-in is not enabled here. Create an account with email instead."}</p>}
           <p className="mt-7 text-body text-graphite-deep">Already have an account? <Link className="font-medium text-midnight underline underline-offset-4" to={paths.signIn(next)}>Sign in</Link></p>
-          <Button variant="quiet" className="mt-3" onClick={() => setPendingVerification(true)}>Verify your email</Button>
         </>
       )}
     </AuthFrame>

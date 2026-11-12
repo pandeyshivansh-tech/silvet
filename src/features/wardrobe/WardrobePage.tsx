@@ -1,25 +1,21 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router";
 import { Plus } from "lucide-react";
 import { useItemImages, useItems, useBasePath } from "@/data";
-import { CATEGORIES, COLORS, getCategory, getColor, labelOf, subcategoriesOf } from "@/domain/taxonomy";
+import { CATEGORIES, COLORS, OCCASIONS, SEASONS, STYLES, getCategory, getColor, labelOf, subcategoriesOf } from "@/domain/taxonomy";
 import { Button, ButtonLink, Chip, ChipRow, ColorSwatch, EmptyState, ItemCard, ItemGridSkeleton, Page, PageHeader, SelectField, StateView, TextField, WARDROBE_GRID } from "@/ui";
 import { paths } from "@/app/paths";
-import { countActiveWardrobeFilters, filterWardrobeItems, type WardrobeFilters } from "./wardrobeFilters";
-
-const initialFilters: WardrobeFilters = {
-  query: "",
-  category: "",
-  subcategory: "",
-  color: "",
-  indianWear: false,
-};
+import { countActiveWardrobeFilters, emptyWardrobeFilters, filterWardrobeItems, readWardrobeFilters, writeWardrobeFilters, type WardrobeFilters } from "./wardrobeFilters";
 
 export default function WardrobePage() {
   const base = useBasePath();
   const itemsQuery = useItems();
   const items = itemsQuery.data;
   const images = useItemImages(items);
-  const [filters, setFilters] = useState<WardrobeFilters>(initialFilters);
+  const [params, setParams] = useSearchParams();
+  const filters = useMemo(() => readWardrobeFilters(params), [params]);
+  const setFilters = (next: WardrobeFilters | ((current: WardrobeFilters) => WardrobeFilters)) =>
+    setParams((current) => writeWardrobeFilters(typeof next === "function" ? next(readWardrobeFilters(current)) : next, current), { replace: true, preventScrollReset: true });
 
   const visibleItems = useMemo(() => filterWardrobeItems(items ?? [], filters), [items, filters]);
   const activeCount = countActiveWardrobeFilters(filters);
@@ -33,7 +29,7 @@ export default function WardrobePage() {
   }, [items]);
   const update = <K extends keyof WardrobeFilters>(key: K, value: WardrobeFilters[K]) =>
     setFilters((current) => ({ ...current, [key]: value }));
-  const reset = () => setFilters(initialFilters);
+  const reset = () => setFilters(emptyWardrobeFilters);
 
   return (
     <Page wide>
@@ -77,6 +73,14 @@ export default function WardrobePage() {
             </Chip>
           ))}
         </ChipRow>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <SelectField label="Occasion" value={filters.occasion ?? ""} placeholder="All occasions"
+            options={OCCASIONS.map(({ slug, label }) => ({ value: slug, label }))} onChange={(event) => update("occasion", event.target.value)} />
+          <SelectField label="Season" value={filters.season ?? ""} placeholder="All seasons"
+            options={SEASONS.map(({ slug, label }) => ({ value: slug, label }))} onChange={(event) => update("season", event.target.value)} />
+          <SelectField label="Style" value={filters.style ?? ""} placeholder="All styles"
+            options={STYLES.map(({ slug, label }) => ({ value: slug, label }))} onChange={(event) => update("style", event.target.value)} />
+        </div>
         <div className="flex flex-col gap-3 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
           <Chip selected={filters.indianWear} onClick={() => update("indianWear", !filters.indianWear)}>Indian wear</Chip>
           <div className="flex min-w-0 items-center gap-3">
@@ -106,6 +110,7 @@ export default function WardrobePage() {
             {filters.subcategory && <Chip selected removable onClick={() => update("subcategory", "")}>{labelOf.subcategory(filters.subcategory)}</Chip>}
             {filters.color && <Chip selected removable onClick={() => update("color", "")}>{getColor(filters.color)?.label}</Chip>}
             {filters.indianWear && <Chip selected removable onClick={() => update("indianWear", false)}>Indian wear</Chip>}
+            {(["occasion", "season", "style"] as const).map((key) => filters[key] && <Chip key={key} selected removable onClick={() => update(key, "")}>{labelOf[key](filters[key])}</Chip>)}
             {activeCount > 0 && <p className="text-caption text-graphite-deep" aria-live="polite">{visibleItems.length} matching {visibleItems.length === 1 ? "piece" : "pieces"}</p>}
           </div>
           {activeCount > 0 && <Button variant="quiet" size="sm" onClick={reset}>Reset filters</Button>}

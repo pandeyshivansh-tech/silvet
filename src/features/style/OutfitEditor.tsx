@@ -3,10 +3,11 @@ import { useNavigate } from "react-router";
 import { ArrowLeftRight, Check, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { ClothingItem, Outfit } from "@/domain/types";
 import { MAX_ACCESSORIES, SLOT_LABELS, itemTypeLabel, type Slot } from "@/domain/taxonomy";
-import { OUTFIT_NAME_MAX } from "@/domain/schemas";
+import { OUTFIT_NAME_MAX, OUTFIT_NOTES_MAX } from "@/domain/schemas";
 import { errorMessage, useSaveOutfit } from "@/data";
 import { paths, type Base } from "@/app/paths";
-import { Button, Chip, ConfirmDialog, PageHeader, TextField, useToast } from "@/ui";
+import { Button, Chip, ConfirmDialog, PageHeader, TextAreaField, TextField, useToast } from "@/ui";
+import { useUnsavedChanges } from "@/lib/UnsavedChanges";
 import { createDraft, draftInput, removeDraftPiece, selectDraftPiece, switchDraftMode, switchWouldDiscard, validateDraft, type BaseMode, type DraftTarget, type OutfitDraft } from "./outfitDraft";
 import { OutfitPickerSheet } from "./OutfitPickerSheet";
 import { OutfitPreview } from "./OutfitPreview";
@@ -43,10 +44,14 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
   const validation = useMemo(() => validateDraft(draft, items), [draft, items]);
   const hasChanges = JSON.stringify(draftInput(draft)) !== baselineRef.current;
   const isSaving = saveOutfit.isPending;
+  const dirty = hasChanges || (!savedId.current && (draft.pieces.length > 0 || draft.name.length > 0 || Boolean(draft.notes)));
+  const guard = useUnsavedChanges(dirty, ({ currentLocation, nextLocation }) =>
+    currentLocation.pathname !== nextLocation.pathname ||
+    new URLSearchParams(currentLocation.search).get("outfit") !== new URLSearchParams(nextLocation.search).get("outfit"));
   useImperativeHandle(ref, () => ({
-    isDirty: () => hasChanges || (!savedId.current && (draft.pieces.length > 0 || draft.name.length > 0)),
+    isDirty: () => dirty,
     isSaving: () => savingLock.current,
-  }), [hasChanges, draft.pieces.length, draft.name]);
+  }), [dirty]);
   const accessorySlots = Array.from({
     length: Math.max(MAX_ACCESSORIES, draft.pieces.filter((piece) => piece.slot === "accessory").length),
   }, (_, index) => index);
@@ -87,6 +92,7 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
       baselineRef.current = JSON.stringify(draftInput(savedDraft));
       setDraft(savedDraft);
       toast.success(outfit ? "Your look is updated." : "Your look is saved.");
+      guard.allowNavigation();
       navigate(paths.style(base, { outfitId: saved.id }), { replace: true });
     } catch (error) {
       toast.error(errorMessage(error));
@@ -100,6 +106,7 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
 
   return (
     <>
+      {guard.prompt}
       <PageHeader
         eyebrow={outfit ? "Editing a saved look" : "Studio"}
         title={outfit ? "Make it yours" : "Build a look"}
@@ -179,6 +186,10 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
                   setDraft((current) => ({ ...current, name: event.target.value }));
                 }}
               />
+              <TextAreaField label="Notes" optional maxLength={OUTFIT_NOTES_MAX} value={draft.notes ?? ""}
+                disabled={isSaving} error={validation.notesError}
+                className="mt-5"
+                onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value || null }))} />
             </div>
 
             <div className="mt-5" aria-live="polite">
@@ -238,7 +249,7 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
         confirmLabel="Clear draft"
         cancelLabel="Keep this look"
         onConfirm={() => {
-          setDraft((current) => ({ ...current, pieces: [], name: "" }));
+          setDraft((current) => ({ ...current, pieces: [], name: "", notes: null }));
           setConfirmClear(false);
         }}
       />

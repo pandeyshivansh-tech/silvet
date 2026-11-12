@@ -5,6 +5,7 @@ import type { OccasionSlug, SeasonSlug, StyleSlug } from "@/domain/taxonomy";
 export interface RecommendationContext {
   occasion: OccasionSlug;
   style?: StyleSlug;
+  preferredStyles?: readonly StyleSlug[];
   season?: Exclude<SeasonSlug, "all-season">;
 }
 export interface Explanation {

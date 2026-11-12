@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countActiveWardrobeFilters, filterWardrobeItems } from "./wardrobeFilters";
+import { countActiveWardrobeFilters, emptyWardrobeFilters, filterWardrobeItems, readWardrobeFilters, writeWardrobeFilters } from "./wardrobeFilters";
 import type { WardrobeFilters } from "./wardrobeFilters";
 
 const pieces = [
@@ -12,6 +12,26 @@ const pieces = [
 const clear: WardrobeFilters = { query: "", category: "", subcategory: "", color: "", indianWear: false };
 
 describe("filterWardrobeItems", () => {
+  it("searches actual colour and garment type labels using multiple words", () => {
+    expect(filterWardrobeItems(pieces, { ...clear, query: "blue kurta" }).map((item) => item.name)).toEqual(["Indigo Kurta"]);
+    expect(filterWardrobeItems(pieces, { ...clear, query: "cream shirt" }).map((item) => item.name)).toEqual(["Cream shirt"]);
+  });
+  it("combines occasion, season and style tags without treating unknown tags as matches", () => {
+    const tagged = [{ ...pieces[0]!, occasionTags: ["everyday" as const], seasonTags: ["summer" as const], styleTags: ["fusion" as const] }, pieces[1]!];
+    expect(filterWardrobeItems(tagged, { ...clear, occasion: "everyday", season: "summer", style: "fusion" })).toEqual([tagged[0]]);
+    expect(filterWardrobeItems(tagged, { ...clear, occasion: "wedding" })).toEqual([]);
+  });
+  it("round-trips filters in the URL while preserving unrelated parameters", () => {
+    const filters = { ...emptyWardrobeFilters, query: "blue kurta", category: "tops", subcategory: "kurtas", color: "blue", occasion: "everyday", season: "summer", style: "fusion", indianWear: true };
+    const params = writeWardrobeFilters(filters, new URLSearchParams("unrelated=keep"));
+    expect(readWardrobeFilters(params)).toEqual(filters);
+    expect(params.get("unrelated")).toBe("keep");
+    const reset = writeWardrobeFilters(emptyWardrobeFilters, params);
+    expect(reset.toString()).toBe("unrelated=keep");
+  });
+  it("ignores invalid taxonomy values and type/category mismatches in URLs", () => {
+    expect(readWardrobeFilters(new URLSearchParams("category=tops&subcategory=jeans&color=madeup&season=bad&style=bad&occasion=bad"))).toEqual({ ...emptyWardrobeFilters, category: "tops" });
+  });
   it("matches names without case sensitivity and ignores surrounding whitespace", () => {
     expect(filterWardrobeItems(pieces, { ...clear, query: "  INDIGO " }).map((piece) => piece.name)).toEqual(["Indigo Kurta"]);
   });

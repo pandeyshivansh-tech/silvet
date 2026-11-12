@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { makeRecommendation, recommend } from "@/engine/recommend";
 import { swapPiece } from "@/engine/swap";
 import type { RecommendationContext, RecommendationResult, Wardrobe } from "@/engine/types";
+import type { StyleSlug } from "@/domain/taxonomy";
+const noPreferences: readonly StyleSlug[] = [];
 
 function remember(seen: string[], result: RecommendationResult): string[] {
   return result.status === "ready" ? [...new Set([...seen, result.recommendation.fingerprint])] : seen;
@@ -18,11 +20,11 @@ function readHistory(key: string): { seen: string[]; warning: boolean } {
 }
 
 /** Browser/session concerns are deliberately outside the pure engine. */
-export function useIdeaSession(items: Wardrobe, namespace: string, initialContext: RecommendationContext = { occasion: "everyday" }) {
+export function useIdeaSession(items: Wardrobe, namespace: string, initialContext: RecommendationContext = { occasion: "everyday" }, preferences: readonly StyleSlug[] = noPreferences) {
   const key = `silvet.ideas.seen.${namespace}.v1`;
   const [session, setSession] = useState(() => {
     const history = readHistory(key);
-    const context: RecommendationContext = { ...initialContext };
+    const context: RecommendationContext = { ...initialContext, preferredStyles: preferences };
     const result = recommend(items, context, history.seen);
     return { context, result, seen: remember(history.seen, result) };
   });
@@ -34,12 +36,19 @@ export function useIdeaSession(items: Wardrobe, namespace: string, initialContex
   }, [key, session.seen]);
   useEffect(() => {
     setSession((current) => {
+      if (JSON.stringify(current.context.preferredStyles) !== JSON.stringify(preferences)) {
+        const context = { ...current.context, preferredStyles: preferences };
+        const fingerprint = current.result.status === "ready" ? current.result.recommendation.fingerprint : null;
+        const history = current.seen.filter((entry) => entry !== fingerprint);
+        const result = recommend(items, context, history);
+        return { context, result, seen: remember(current.seen, result) };
+      }
       const valid = current.result.status === "ready"
         ? makeRecommendation(current.result.recommendation.pieces, items, current.context) : null;
       const result: RecommendationResult = valid ? { status: "ready", recommendation: valid } : recommend(items, current.context, current.seen);
       return { ...current, result, seen: remember(current.seen, result) };
     });
-  }, [items]);
+  }, [items, preferences]);
   // Never render a stale invalid outfit, even before wardrobe-change reconciliation.
   const result = useMemo<RecommendationResult>(() => {
     if (session.result.status !== "ready") return session.result;

@@ -7,6 +7,7 @@ import { fieldErrors, ITEM_NAME_MAX, itemInputSchema, type ItemInput } from "@/d
 import { Button, Chip, SelectField, TextField } from "@/ui";
 import { GarmentFrame } from "@/ui";
 import type { ClothingItem, PreparedImage } from "@/domain/types";
+import { useUnsavedChanges } from "@/lib/UnsavedChanges";
 
 interface FormValues {
   name: string;
@@ -81,7 +82,7 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
   initialPhoto?: File;
   submitLabel: string;
   loading?: boolean;
-  onSave: (input: ItemInput, image?: PreparedImage | null) => Promise<void>;
+  onSave: (input: ItemInput, image: PreparedImage | null | undefined, allowNavigation: () => void) => Promise<void>;
 }) {
   const isDemo = useIsDemo();
   const formRef = useRef<HTMLFormElement>(null);
@@ -94,6 +95,9 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
   const [photoError, setPhotoError] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [removeImage, setRemoveImage] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const baseline = useRef(JSON.stringify(initialItem ? valuesFromItem(initialItem) : valuesFromInput(initialInput)));
+  const guard = useUnsavedChanges(JSON.stringify(values) !== baseline.current || Boolean(photo) || removeImage);
   const existingImages = useItemImages(initialItem ? [initialItem] : undefined);
   const existingUrl = initialItem ? existingImages.byItem.get(initialItem.id)?.full : undefined;
 
@@ -146,8 +150,12 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
     }
     setFieldErrorMap({});
     submitLock.current = true;
+    setProcessing(true);
     try {
-      await onSave(result.data, isDemo ? undefined : photo ? prepareImage(photo) : removeImage ? null : undefined);
+      const image = isDemo ? undefined : photo ? await prepareImage(photo) : removeImage ? null : undefined;
+      // The parent navigates synchronously after persistence, so only it can
+      // permit that navigation at the correct point.
+      await onSave(result.data, image, guard.allowNavigation);
     } catch (error) {
       if (isRepositoryError(error) && error.fieldErrors) {
         setFieldErrorMap(error.fieldErrors);
@@ -159,6 +167,7 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
       }
     } finally {
       submitLock.current = false;
+      setProcessing(false);
     }
   };
 
@@ -171,6 +180,7 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.72fr)] lg:gap-16">
+      {guard.prompt}
       <div className="space-y-8">
         <TextField
           label="Name"
@@ -248,7 +258,7 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
         </div>
         {formError && <p className="border-l-2 border-danger pl-3 text-body text-danger" role="alert">{formError}</p>}
         <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center">
-          <Button type="submit" loading={loading} loadingLabel="Saving…" className="sm:min-w-52">{submitLabel}</Button>
+          <Button type="submit" loading={loading || processing} loadingLabel="Saving…" className="sm:min-w-52">{submitLabel}</Button>
           <p className="text-caption text-graphite-deep">Name and category are the only required details.</p>
         </div>
       </div>
@@ -312,7 +322,7 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
         {photoError && <p className="text-caption text-danger" role="alert">{photoError}</p>}
         <p className="text-caption text-graphite-deep">
           {isDemo ? "Preview only — photos are not saved in this demo. Your clothing details can still be saved."
-            : loading ? "Saving details and photo… Please wait." : "JPEG, PNG or WebP, up to 10 MiB. Photos are private and saved with your piece."}
+          : loading || processing ? "Optimising and saving details and photo… Please wait." : "JPEG, PNG or WebP, up to 10 MiB. SILVET re-encodes photos to WebP and strips metadata where browser processing is supported; if processing fails, the original is kept. Photos are private and saved with your piece."}
         </p>
       </aside>
     </form>

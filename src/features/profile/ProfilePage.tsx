@@ -1,11 +1,52 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Button, ButtonLink, Chip, ChipRow, ErrorState, Skeleton } from "@/ui";
+import { Button, ButtonLink, Chip, ChipRow, ErrorState, Skeleton, TextField } from "@/ui";
 import { paths } from "@/app/paths";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { useProfile } from "@/data/profiles/hooks";
-import { STYLES } from "@/domain/taxonomy";
+import { useProfile, useUpdateProfile } from "@/data/profiles/hooks";
+import { STYLES, type StyleSlug } from "@/domain/taxonomy";
 import { authError } from "@/lib/auth/authFlow";
+import type { UserProfile } from "@/domain/types";
+import { profileInputSchema } from "@/domain/profileSchema";
+import { useUnsavedChanges } from "@/lib/UnsavedChanges";
+
+function ProfileForm({ saved }: { saved: UserProfile }) {
+  const update = useUpdateProfile();
+  const [name, setName] = useState(saved.displayName ?? "");
+  const [styles, setStyles] = useState<StyleSlug[]>(saved.stylePreferences);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const lock = useRef(false);
+  const dirty = name !== (saved.displayName ?? "") || JSON.stringify(styles) !== JSON.stringify(saved.stylePreferences);
+  const guard = useUnsavedChanges(dirty);
+  return <form noValidate className="mt-7 space-y-5" onSubmit={(event) => {
+    event.preventDefault();
+    if (lock.current) return;
+    const parsed = profileInputSchema.safeParse({ displayName: name, stylePreferences: styles });
+    if (!parsed.success) { setError(parsed.error.issues[0]?.message ?? "Check your profile."); return; }
+    lock.current = true; setError(""); setSuccess(false);
+    void update.mutateAsync(parsed.data).then(() => {
+      setName(parsed.data.displayName ?? ""); setSuccess(true);
+    }).catch(() => setError("Your profile wasn’t saved. Your changes are still here; please retry."))
+      .finally(() => { lock.current = false; });
+  }}>
+    {guard.prompt}
+    <TextField label="Display name" optional autoComplete="name" maxLength={80} value={name} disabled={update.isPending}
+      onChange={(event) => { setName(event.target.value); setSuccess(false); }} />
+    <fieldset disabled={update.isPending}>
+      <legend className="text-ui font-medium text-midnight">Edit style preferences</legend>
+      <ChipRow label="Edit style preferences" className="mt-3 flex-wrap overflow-visible">
+        {STYLES.map((style) => <Chip key={style.slug} selected={styles.includes(style.slug)} disabled={update.isPending} onClick={() => {
+          setStyles((current) => current.includes(style.slug) ? current.filter((value) => value !== style.slug) : [...current, style.slug]);
+          setSuccess(false);
+        }}>{style.label}</Chip>)}
+      </ChipRow>
+    </fieldset>
+    {error && <p role="alert" className="text-danger">{error}</p>}
+    {success && <p role="status">Your profile is saved.</p>}
+    <Button type="submit" disabled={!dirty} loading={update.isPending} loadingLabel="Saving profile">Save profile</Button>
+  </form>;
+}
 
 export default function ProfilePage() {
   const profile = useProfile();
@@ -57,11 +98,12 @@ export default function ProfilePage() {
                 ) : <p className="mt-2 text-caption text-graphite-deep">No preferences added yet.</p>}
               </div>
             </section>
+            <div className="max-w-2xl"><ProfileForm key={profile.data.id} saved={profile.data} /></div>
             <div className="mt-7 flex flex-col items-start gap-5">
               <div className="flex flex-wrap gap-3">
                 <ButtonLink to={paths.wardrobe("/app")}>Personal wardrobe</ButtonLink>
-                <ButtonLink to={paths.style("/app")} variant="secondary">Studio status</ButtonLink>
-                <ButtonLink to={paths.lookbook("/app")} variant="secondary">Lookbook status</ButtonLink>
+                <ButtonLink to={paths.style("/app")} variant="secondary">Open Studio</ButtonLink>
+                <ButtonLink to={paths.lookbook("/app")} variant="secondary">Open Lookbook</ButtonLink>
               </div>
               <Button variant="secondary" onClick={signOut} loading={signingOut} loadingLabel="Signing out">Sign out</Button>
               <p className="max-w-lg text-caption text-graphite-deep">Want to look around first? <Link className="text-midnight underline underline-offset-4" to={paths.wardrobe("/demo")}>Visit the demo wardrobe</Link>. It contains sample pieces, not your personal clothes.</p>

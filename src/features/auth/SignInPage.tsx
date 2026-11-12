@@ -98,10 +98,11 @@ export default function SignInPage() {
             </div>
             <Button type="submit" fullWidth disabled={!auth.isConfigured} loading={submitting} loadingLabel="Signing in">Sign in</Button>
           </form>
+          <Link to={paths.resetPassword()} className="mt-3 inline-flex min-h-11 items-center text-caption text-midnight underline underline-offset-4">Forgot password?</Link>
           <div className="my-6 flex items-center gap-4 text-caption text-graphite-deep"><span className="h-px flex-1 bg-line" /><span>or</span><span className="h-px flex-1 bg-line" /></div>
           <Button variant="secondary" fullWidth onClick={google} disabled={auth.googleAvailable !== true || submitting} leadingIcon={<span aria-hidden="true" className="font-medium">G</span>}>Continue with Google</Button>
           {auth.googleAvailable !== true && <p className="mt-3 text-caption text-graphite-deep" role="status">{auth.googleAvailable === null ? "Checking Google availability…" : "Google sign-in is not enabled here. Use email and password instead."}</p>}
-          <Button variant="quiet" className="mt-4" onClick={() => setVerification(true)}>Verify your email</Button>
+          <Button variant="quiet" className="mt-4" onClick={() => setVerification(true)}>Verify a legacy account</Button>
           <p className="mt-7 text-body text-graphite-deep">New to SILVET? <Link className="font-medium text-midnight underline underline-offset-4" to={paths.signUp(next)}>Create an account</Link></p>
           <p className="mt-4 text-caption text-graphite-deep"><ArrowUpRight aria-hidden="true" className="mr-1 inline size-3.5" />No account needed to browse the <Link to={paths.wardrobe("/demo")} className="text-midnight underline underline-offset-4">sample wardrobe</Link>.</p>
         </>

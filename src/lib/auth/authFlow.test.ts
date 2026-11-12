@@ -11,7 +11,14 @@ describe("safe authentication continuation", () => {
   it.each(["/app", "/app/profile", "/app/wardrobe", "/app/wardrobe/item-1/edit", "/app/style?mode=ideas", "/app/lookbook/outfit-1"])("preserves %s", (input) => expect(safeNext(input)).toBe(input));
 });
 describe("auth and onboarding inputs", () => {
-  it("does not trim passwords", () => expect(signUpSchema.parse({ email: "a@example.com", password: " password " }).password).toBe(" password "));
+  it("trims signup names and email but never trims passwords", () => {
+    expect(signUpSchema.parse({ displayName: " New name ", email: " a@example.com ", password: " password " }))
+      .toMatchObject({ displayName: "New name", email: "a@example.com", password: " password " });
+  });
+  it("requires a usable display name at signup", () => {
+    expect(signUpSchema.safeParse({ displayName: "  ", email: "a@example.com", password: "password" }).success).toBe(false);
+    expect(signUpSchema.safeParse({ displayName: "x".repeat(81), email: "a@example.com", password: "password" }).success).toBe(false);
+  });
   it("accepts older short passwords for login, not for new signup", () => {
     expect(signInSchema.safeParse({ email: "a@example.com", password: "abc" }).success).toBe(true);
     expect(signUpSchema.safeParse({ email: "a@example.com", password: "abc" }).success).toBe(false);

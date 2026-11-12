@@ -16,12 +16,12 @@ interface Props {
   onOpen: (pieces: readonly OutfitPiece[]) => void;
   ref?: Ref<EditorGuard>;
 }
+const noPreferences: readonly StyleSlug[] = [];
 export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
   const repository = useRepository();
   const profile = useProfile(repository.kind === "supabase");
-  const initialStyle = repository.kind === "supabase" ? profile.data?.stylePreferences[0] : undefined;
   const ideas = useIdeaSession(items, repository.kind === "demo" ? base : `supabase:${repository.userId}`,
-    { occasion: "everyday", ...(initialStyle ? { style: initialStyle } : {}) });
+    { occasion: "everyday" }, repository.kind === "supabase" ? profile.data?.stylePreferences ?? noPreferences : noPreferences);
   const mutation = useSaveOutfit();
   const saving = useRef(false);
   const toast = useToast();
@@ -63,7 +63,7 @@ export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
           placeholder="Any season" options={SEASONS.filter((season) => season.slug !== "all-season").map((season) => ({ value: season.slug, label: season.label }))}
           onChange={(event) => change({ ...ideas.context, season: (event.target.value || undefined) as RecommendationContext["season"] })} />
       </div>
-      <p className="mt-3 text-caption text-graphite-deep">Style is a preference, not a requirement. Untagged details stay unknown; we never infer fabric.</p>
+      <p className="mt-3 text-caption text-graphite-deep">Style is a preference, not a requirement. All saved style preferences gently boost matching garment tags; they never exclude other styles. Untagged details stay unknown; we never infer fabric.</p>
       {ideas.historyWarning && <p role="status" className="mt-3 text-caption text-graphite-deep">Session storage is unavailable for idea history. Repetition protection lasts only while this screen stays open.</p>}
       {current ? (
         <section className="mt-8" aria-label="Recommended outfit" data-fingerprint={current.fingerprint}>
@@ -110,7 +110,7 @@ export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
       <p role="status" aria-live="polite" className="mt-4 text-caption text-graphite-deep">{ideas.notice}</p>
       <p className="mt-6 border-t border-line pt-5 text-caption text-graphite-deep">{base === "/demo"
         ? "Demo pieces, saved looks and idea history stay in this tab only. Photos are not stored."
-        : "Saved looks belong to your account. Ideas filters don’t change your saved style preferences. Image uploads are not available yet."}</p>
+        : "Saved looks belong to your account. Ideas filters don’t change your saved style preferences. Photos are private and can be added in Wardrobe."}</p>
     </>
   );
 }
