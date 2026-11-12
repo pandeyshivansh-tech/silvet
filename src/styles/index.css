@@ -1,0 +1,230 @@
+@import "tailwindcss";
+
+/*
+ * SILVET design tokens — "The Fluid Atelier".
+ * Visual source of truth: docs/design/SILVET_DESIGN_REFERENCE.pdf
+ * Implementation reference: docs/design/SILVET_DESIGN_SYSTEM.md
+ *
+ * Tailwind's default palette, type scale, radii and shadows are REMOVED on purpose:
+ * bg-purple-500, text-sm, rounded-2xl or shadow-xl do not exist in this project.
+ */
+@theme {
+  /* ---------- colour · four brand colours ---------- */
+  --color-*: initial;
+  /* Warm Chalk — every page background. Never replaced by a dark mode. */
+  --color-chalk: #f4f0e9;
+  /* Midnight Aubergine — type, primary buttons, tab bar, demo banner, active nav, toasts, one dark section per page. 14.8:1 on Chalk. */
+  --color-midnight: #211a2b;
+  /* Atelier Lilac — SELECTED ONLY: garment mats, active filters/tabs, slot being filled, selected options. Text on it is always Midnight (10.9:1). */
+  --color-lilac: #d9c9ef;
+  /* Electric Citron — signature marks ON MIDNIGHT ONLY (13.6:1). Never on Chalk (1.09:1), never on Lilac. */
+  --color-citron: #d9f36a;
+
+  /* ---------- colour · functional neutrals ---------- */
+  /* Chalk Deep — garment backdrops, quiet panels, skeletons, input fill on press. */
+  --color-chalk-deep: #ebe6dd;
+  /* Graphite Deep — text under 18 px (6.0:1 on Chalk). */
+  --color-graphite-deep: #5e5866;
+  /* Graphite — borders, icons, text 18 px and up only (4.16:1 on Chalk). */
+  --color-graphite: #77717e;
+  /* Danger — delete actions and field errors only (5.9:1 on Chalk). */
+  --color-danger: #a8321f;
+
+  /* ---------- colour · interaction shades (derived, not brand colours) ---------- */
+  --color-midnight-hover: #2e2539; /* primary hover: one step lighter */
+  --color-midnight-press: #15101c; /* primary pressed: one step darker */
+  --color-midnight-muted: #b3acb9; /* tab bar inactive on Midnight (7.6:1) — from the PDF */
+  --color-danger-press: #8c2918;
+  /* Hairlines are Midnight at fixed alpha: 12% default, 28% inputs & secondary buttons. */
+  --color-line: rgb(33 26 43 / 0.12);
+  --color-line-strong: rgb(33 26 43 / 0.28);
+  --color-scrim: rgb(33 26 43 / 0.42);
+
+  /* ---------- type ---------- */
+  --font-*: initial;
+  --font-display: "Instrument Serif", "Iowan Old Style", "Times New Roman", serif;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Scale (desktop / mobile). Mobile sizes are the base; `lg:` switches to the -lg token. */
+  --text-*: initial;
+  --text-hero: 3.5rem; /* 56/52 */
+  --text-hero--line-height: 3.25rem;
+  --text-hero--letter-spacing: -0.02em;
+  --text-hero-lg: 6rem; /* 96/88 */
+  --text-hero-lg--line-height: 5.5rem;
+  --text-hero-lg--letter-spacing: -0.025em;
+  --text-page: 2.5rem; /* 40/40 */
+  --text-page--line-height: 2.5rem;
+  --text-page--letter-spacing: -0.015em;
+  --text-page-lg: 3.5rem; /* 56/56 */
+  --text-page-lg--line-height: 3.5rem;
+  --text-page-lg--letter-spacing: -0.02em;
+  --text-section: 2rem; /* 32 */
+  --text-section--line-height: 2.25rem;
+  --text-section--letter-spacing: -0.01em;
+  --text-section-lg: 3rem; /* 48 */
+  --text-section-lg--line-height: 3.125rem;
+  --text-section-lg--letter-spacing: -0.015em;
+  --text-look: 1.5rem; /* 24 — look names, sheet and dialog titles */
+  --text-look--line-height: 1.875rem;
+  --text-look-lg: 1.75rem; /* 28 */
+  --text-look-lg--line-height: 2.125rem;
+  --text-lead: 1rem; /* 16/24 */
+  --text-lead--line-height: 1.5rem;
+  --text-lead-lg: 1.125rem; /* 18/28 */
+  --text-lead-lg--line-height: 1.75rem;
+  --text-input: 1rem; /* 16 — inputs never smaller, so iOS never zooms */
+  --text-input--line-height: 1.5rem;
+  --text-body: 0.9375rem; /* 15/23 */
+  --text-body--line-height: 1.4375rem;
+  --text-ui: 0.875rem; /* 14/20 · pair with font-medium */
+  --text-ui--line-height: 1.25rem;
+  --text-caption: 0.8125rem; /* 13/19 */
+  --text-caption--line-height: 1.1875rem;
+  --text-label: 0.6875rem; /* 11 · +14% tracking · caps · ONCE PER VIEW, MAX */
+  --text-label--line-height: 1rem;
+  --text-label--letter-spacing: 0.14em;
+
+  /* ---------- shape ---------- */
+  --radius-*: initial;
+  --radius-xs: 2px; /* everything you tap */
+  --radius-sheet: 16px; /* mobile sheet top corners only */
+  --radius-full: 9999px; /* dots, avatars, colour swatches */
+
+  /* One shadow in the system: the sheet's. */
+  --shadow-*: initial;
+  --shadow-sheet: 0 -1px 0 rgb(33 26 43 / 0.06), 0 -24px 48px -24px rgb(33 26 43 / 0.22);
+
+  /* ---------- motion (CSS side; JS presets live in src/motion/presets.ts) ---------- */
+  --ease-editorial: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  --animate-sweep: sweep 2.4s var(--ease-editorial) infinite;
+  @keyframes sweep {
+    0% {
+      background-position: -160% 0;
+    }
+    100% {
+      background-position: 160% 0;
+    }
+  }
+  --animate-pulse-dot: pulse-dot 1.2s ease-in-out infinite;
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* ---------- layout ----------
+   * Phone < 640 · Tablet 640–1023 · Desktop ≥ 1024 (the side rail appears at lg).
+   * md (768) is kept for the two-column item detail on tablet. */
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --tabbar-height: 4rem;
+    /* Focus ring colour: Midnight on Chalk; .surface-midnight switches it to Citron. */
+    --focus-ring: var(--color-midnight);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-chalk font-sans text-body text-midnight antialiased;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 100dvh;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: var(--color-lilac);
+    color: var(--color-midnight);
+  }
+
+  /* Focus is always visible: 2 px Midnight on Chalk, 2 px Citron on Midnight. */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  img {
+    color: transparent; /* hide alt text flash while loading */
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+/* Custom utilities (Tailwind v4 @utility so they work with variants like lg:). */
+
+/* Midnight surface: Chalk text and a Citron focus ring for everything inside. */
+@utility surface-midnight {
+  background-color: var(--color-midnight);
+  color: var(--color-chalk);
+  --focus-ring: var(--color-citron);
+}
+
+/* Small uppercase tracked label — the editorial metadata voice. ONCE PER VIEW, MAX. */
+@utility eyebrow {
+  @apply font-sans text-label font-medium uppercase text-graphite-deep;
+}
+
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Horizontal chip rows fade at the edges. Never use over garment imagery. */
+@utility fade-x {
+  mask-image: linear-gradient(to right, transparent 0, black 1rem, black calc(100% - 1.5rem), transparent 100%);
+}
+
+/* Skeleton: Chalk Deep with a slow tonal sweep — no colour. */
+@utility skeleton {
+  background-color: var(--color-chalk-deep);
+  background-image: linear-gradient(90deg, transparent 0%, rgb(244 240 233 / 0.55) 50%, transparent 100%);
+  background-size: 60% 100%;
+  background-repeat: no-repeat;
+  animation: var(--animate-sweep);
+}
+
+/* Respect "Reduce motion" for every CSS transition/animation (Motion handles JS animation). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

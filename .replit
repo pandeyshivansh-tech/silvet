@@ -1,0 +1,12 @@
+run = "npm run dev"
+entrypoint = "src/main.tsx"
+modules = ["nodejs-22"]
+
+[[ports]]
+localPort = 5173
+externalPort = 80
+
+[deployment]
+# Production is deployed by Cloudflare Pages from GitHub, not from Replit.
+run = ["sh", "-c", "npm run preview"]
+build = ["sh", "-c", "npm run build"]

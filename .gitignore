@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local files
+.DS_Store
+.vite/
+npm-debug.log*
+
+# IDE and editor
+.idea/
+.vscode/
+
+# Private AI and working instructions
+CLAUDE.md
+claude.md
+DESIGN.md
+design.md
+replit.md
