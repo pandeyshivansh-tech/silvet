@@ -38,7 +38,11 @@ export function createProductFixtures() {
     if (["GET", "HEAD"].includes(request.method)) { await sendRows(selected); return true; }
     if (request.method === "POST" && name === "wardrobe_items") {
       if (body.user_id !== account) { await failure("42501", 403); return true; }
-      const row = { ...body, id: randomUUID(), image_path: null, image_thumb_path: null, created_at: time(), updated_at: time() };
+      const row = { image_path: null, image_thumb_path: null, ...body, id: body.id ?? randomUUID(), created_at: time(), updated_at: time() };
+      // Mirror migration 001's image ownership constraint (not a replacement for SQL/RLS testing).
+      if ([row.image_path, row.image_thumb_path].some((path) => path !== null && !path.startsWith(`${account}/${row.id}/`))) {
+        await failure("23514", 400); return true;
+      }
       wardrobe.set(row.id, row); counts.creates++; await sendRows([row]); return true;
     }
     if (request.method === "PATCH") {

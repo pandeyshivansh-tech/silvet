@@ -25,7 +25,7 @@ const designSystemSyntax = [
 ];
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", "coverage", ".local/**"] },
+  { ignores: ["dist", "dist-server", "node_modules", "coverage", ".local/**"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

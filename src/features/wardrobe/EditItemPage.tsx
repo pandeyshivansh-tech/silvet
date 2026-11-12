@@ -31,8 +31,8 @@ export default function EditItemPage() {
             initialItem={item}
             submitLabel="Save changes"
             loading={updateItem.isPending}
-            onSave={async (input) => {
-              const saved = await updateItem.mutateAsync({ id: item.id, input });
+            onSave={async (input, image) => {
+              const saved = await updateItem.mutateAsync({ id: item.id, input, image });
               toast.success("Your changes have been saved.");
               navigate(paths.item(base, saved.id));
             }}

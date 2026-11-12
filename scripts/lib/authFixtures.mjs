@@ -22,14 +22,15 @@ export const profile = (id = accountA, complete = false) => ({
   id, display_name: null, style_preferences: [], onboarding_completed_at: complete ? "2026-11-12T00:00:00Z" : null,
   created_at: "2026-11-12T00:00:00Z", updated_at: "2026-11-12T00:00:00Z",
 });
-export function createAuthFixtures(origin, { handleData } = {}) {
+export function createAuthFixtures(origin, { handleData, extraPatterns = [] } = {}) {
   const rows = new Map();
   const counts = { signup: 0, password: 0, resend: 0, verify: 0, exchange: 0, provision: 0, update: 0, logout: 0, refresh: 0, oauth: 0, forbidden: 0 };
   const state = { google: false, loginError: null, saveError: false, readError: false, resendError: false, otpError: false, exchangeError: false, refreshError: false, delay: 0, account: accountA, userError: false, oauthRequestValid: false };
   async function install(page) {
     page.on("Fetch.requestPaused", async ({ requestId, request }) => {
       const url = new URL(request.url);
-      const body = request.postData ? JSON.parse(request.postData) : {};
+      const contentType = Object.entries(request.headers).find(([key]) => key.toLowerCase() === "content-type")?.[1] ?? "";
+      const body = request.postData && contentType.includes("application/json") ? JSON.parse(request.postData) : {};
       const headers = [
         { name: "Content-Type", value: "application/json" },
         { name: "X-Supabase-Api-Version", value: "2024-01-01" },
@@ -76,12 +77,12 @@ export function createAuthFixtures(origin, { handleData } = {}) {
           rows.set(id, { ...rows.get(id), ...body }); await reply(rows.get(id)); return;
         }
       }
-      if (handleData && await handleData({ request, url, body, reply, failure, account: state.account })) return;
+      if (handleData && await handleData({ request, requestId, page, url, body, reply, failure, account: state.account })) return;
       if (["wardrobe_items", "saved_outfits", "outfit_items"].some((name) => url.pathname === `/rest/v1/${name}`)
           && ["GET", "HEAD"].includes(request.method)) { await reply([]); return; }
       counts.forbidden++; await failure("unsupported_fixture_request", 403);
     });
-    await page.send("Fetch.enable", { patterns: [{ urlPattern: "*supabase.co/*", requestStage: "Request" }] });
+    await page.send("Fetch.enable", { patterns: [{ urlPattern: "*supabase.co/*", requestStage: "Request" }, ...extraPatterns.map((urlPattern) => ({ urlPattern, requestStage: "Request" }))] });
   }
   return { rows, state, counts, install };
 }

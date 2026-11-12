@@ -17,8 +17,9 @@ npm run dev                  # http://localhost:5173
 |---|---|
 | `npm run dev` | Dev server (exposed on your network for phone testing) |
 | `npm run check` | Type-check + lint + unit tests |
-| `npm run build` | Type-check + production build to `dist/` |
-| `npm run preview` | Serve the production build locally |
+| `npm run build` | Type-check + frontend to `dist/` and Node API to `dist-server/` |
+| `npm start` | Serve the production frontend and API together |
+| `npm run preview` | Frontend-only preview; does not provide the import API |
 
 ## Routes
 `/` landing · `/demo/*` sample wardrobe (no account) · `/app/*` your wardrobe (sign-in required) · `/auth/*` · `/onboarding` · `/styleguide` design system.
@@ -37,8 +38,27 @@ src/
 ```
 Screens never touch Supabase directly: they use the hooks in `src/data`, which run on either the `DemoRepository` (sample wardrobe) or the Supabase repository (signed-in users).
 
+`server/` contains the minimal Node HTTP API, secure public-page downloader and
+structured metadata parser. Development mounts the same API handler in Vite;
+production serves the React build and API from a single Node process.
+
 ## Deployment
-Cloudflare Pages from GitHub: build command `npm run build`, output `dist`, env vars `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. `public/_redirects` handles client-side routing.
+The intended production platform is the existing **Replit Reserved VM** at
+`https://silvet.replit.app`. Build: `npm run build`; run: `npm start`. The Node
+server binds `0.0.0.0` and uses `PORT` (default `5000`). It serves `/api/*`, built
+assets and extensionless SPA routes on the same domain.
+
+Both `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` must be configured for build
+**and runtime**. The latter contains the existing public `sb_publishable` key,
+never a service-role key. No additional API keys are needed.
+
+Static hosting and `vite preview` alone cannot provide URL extraction.
+`public/_redirects` is retained for existing static/demo use but is not the
+production server's routing mechanism. Configuration changes take effect only
+after you explicitly republish; no publish is performed by setup.
+
+See [Product URL import](docs/PRODUCT_URL_IMPORT.md) for security limits,
+retailer limitations, verification commands and manual acceptance steps.
 
 ## Docs
 `CLAUDE.md` (engineering rules) · `DESIGN.md` (design direction) · `docs/design/SILVET_DESIGN_SYSTEM.md` (tokens, components, states) · `docs/design/SILVET_DESIGN_REFERENCE.pdf` (approved visual reference) · `replit.md` (rules for Replit Agent).

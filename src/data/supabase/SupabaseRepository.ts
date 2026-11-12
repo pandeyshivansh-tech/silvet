@@ -7,6 +7,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/database.types";
 import { RepositoryError, type Repository, type CreateItemArgs, type UpdateItemArgs, type SaveOutfitArgs } from "../repository";
 import { itemColumns, mapItem, mapOutfit } from "./mapping";
+import { WardrobeImages } from "./images";
 
 type Failure = { code?: string; message?: string };
 function databaseError(error: Failure): RepositoryError {
@@ -90,26 +91,44 @@ export class SupabaseRepository implements Repository {
   }
   createItem({ input, image }: CreateItemArgs) {
     return this.operation(async () => {
-      if (image) throw new RepositoryError("storage", "Image uploads are not available yet. Save clothing details without an image.");
       const values = itemColumns(itemInputSchema.parse(input));
-      return mapItem(required(checked(await this.client.from("wardrobe_items")
-        .insert({ ...values, user_id: this.userId }).select("*").single())), this.userId);
+      const storage = new WardrobeImages(this.client, this.userId);
+      const id = crypto.randomUUID();
+      const ref = image ? await storage.upload(image, id) : null;
+      await storage.assertAccount();
+      const response = await this.client.from("wardrobe_items")
+        .insert({ ...values, id, user_id: this.userId, image_path: ref?.path ?? null, image_thumb_path: ref?.thumbPath ?? null }).select("*").single();
+      // A network failure is ambiguous: the insert may have committed. Retain the
+      // upload rather than deleting an image a committed row may now reference.
+      if (response.error?.code && response.error.code !== "57014" && !/fetch|network/i.test(response.error.message))
+        await storage.cleanup(ref);
+      return mapItem(required(checked(response)), this.userId);
     });
   }
   updateItem({ id, input, image }: UpdateItemArgs) {
     return this.operation(async () => {
-      if (image !== undefined)
-        throw new RepositoryError("storage", "Image replacement and removal are not available yet. Your existing image is unchanged.");
-      return mapItem(required(checked(await this.client.from("wardrobe_items")
-        .update(itemColumns(itemInputSchema.parse(input))).eq("user_id", this.userId).eq("id", id)
-        .select("*").maybeSingle())), this.userId);
+      const values = itemColumns(itemInputSchema.parse(input));
+      const storage = new WardrobeImages(this.client, this.userId);
+      const old = image !== undefined ? required(await this.getItem(id)) : null;
+      const ref = image ? await storage.upload(image, id) : null;
+      await storage.assertAccount();
+      const response = await this.client.from("wardrobe_items")
+        .update({ ...values, ...(image !== undefined ? { image_path: ref?.path ?? null, image_thumb_path: ref?.thumbPath ?? null } : {}) })
+        .eq("user_id", this.userId).eq("id", id).select("*").maybeSingle();
+      if ((!response.error && !response.data) || (response.error?.code && response.error.code !== "57014" && !/fetch|network/i.test(response.error.message)))
+        await storage.cleanup(ref);
+      const saved = mapItem(required(checked(response)), this.userId);
+      if (image !== undefined) await storage.cleanup(old?.image ?? null);
+      return saved;
     });
   }
   deleteItem(id: string) {
     return this.operation(async () => {
+      const old = required(await this.getItem(id));
       // Migration 001's composite FK SET NULL retains outfit slot/position.
       required(checked(await this.client.from("wardrobe_items").delete().eq("user_id", this.userId)
         .eq("id", id).select("id").maybeSingle()));
+      await new WardrobeImages(this.client, this.userId).cleanup(old.image);
     });
   }
   countOutfitsUsingItem(id: string) {
@@ -154,9 +173,7 @@ export class SupabaseRepository implements Repository {
         .eq("id", id).select("id").maybeSingle()));
     });
   }
-  async getImageUrls(_refs: readonly ImageRef[]): Promise<Record<string, ImageUrls>> {
-    // No signed URL generation, uploads, object URLs, or invented persistent images
-    // in this milestone. Ref metadata is retained; screens use existing placeholders.
-    return {};
+  getImageUrls(refs: readonly ImageRef[]): Promise<Record<string, ImageUrls>> {
+    return this.operation(() => new WardrobeImages(this.client, this.userId).urls(refs));
   }
 }

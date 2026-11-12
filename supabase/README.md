@@ -110,10 +110,8 @@ passwords, OTPs, callback codes, session tokens or signed URLs in logs/chat.
 
 - Hosted persistence, live RLS and cross-account REST behavior remain unverified
   until 004 is applied and actual accounts complete the acceptance plan.
-- Images are not uploaded, processed, replaced, removed or signed. Existing image
-  keys remain in row mappings, but image resolution returns unavailable so the
-  existing no-photo illustrations render. A form photo is only a local preview.
-  Deleting a wardrobe row does not clean up existing Storage objects.
+- Milestone 5 adds private image upload, replacement, removal and signed display
+  URLs as described below. Demo image selection remains a local preview only.
 - A lost HTTP response **after** server commit can leave the outcome uncertain.
   Check Lookbook before retrying a new save. In-tab duplicate submits are guarded;
   no distributed idempotency or concurrent-edit conflict UI is claimed.
@@ -287,7 +285,7 @@ Milestone 3. The following instructions are reference for a fresh/staging projec
   device. Account-specific profile cache is cleared; demo storage is not cleared.
   Revocation does not retroactively invalidate all previously issued access JWTs.
 - Redirect continuations accept only known same-origin `/app` destinations.
-- Password reset, account deletion/editing and image lifecycle remain out of scope.
+- Password reset and account deletion/editing remain out of scope.
 
 No hosted auth accounts or emails are created by the mocked browser tests.
 Real email delivery, verification, hosted profile provisioning/RLS and Google
@@ -319,3 +317,86 @@ identities and intercepted Supabase HTTP responses. It covers the real UI and SD
 protocol, not the hosted identity service. Run the existing Studio, Lookbook and
 Ideas suites as regression checks too. No test account passwords or tokens belong
 in tracked fixtures, logs or documentation; fixture credentials are synthetic.
+
+## Milestone 5 — private wardrobe image persistence
+
+No additional migrations or dashboard changes are required when migrations
+001–003 and their private `wardrobe-images` bucket policies are already applied.
+Do not make the bucket public or grant UPDATE/upsert access. Migration 004 is
+unrelated to image uploads and is not applied by this work.
+
+Uploads use the authenticated browser client, never a service-role key.
+Object paths are `<user UUID>/<item UUID>/<upload UUID>/full.<extension>`.
+This satisfies migration 001's owner/item prefix constraints and avoids
+overwriting existing images. Database rows store keys, never signed URLs.
+JPEG, PNG and WebP are accepted; empty files and files above 10 MiB are rejected.
+Original files are retained without cropping, re-encoding, thumbnail resizing
+or EXIF stripping. Full and thumbnail references share one object for normal
+file selections; the existing prepared-image contract also supports two objects.
+
+A replacement uploads first, updates the database second, then attempts to
+delete the previous objects. Database rejection attempts cleanup of the new
+upload only. Ambiguous network responses retain the upload because a successful
+database commit may already reference it. Removal/deletion cleans Storage only
+after database success. Cleanup errors, tab closure, account changes and
+ambiguous writes can leave private orphans; there is no background reconciler
+or cross-service transaction. Do not claim guaranteed orphan-free persistence.
+Concurrent edits use database last-write behavior, not conflict resolution.
+
+Storage requests check the current verified account. RLS and owner-prefixed
+paths remain authoritative, including during account switching. Query caches
+are user-specific and cleared on sign-out/account change. Signed URLs last one
+hour and refresh every 30 minutes, on mount and on return to the tab. Cached
+URLs older than 55 minutes are suppressed while renewal completes. Failed
+images use the existing placeholder and retry rendering with a new signed URL.
+Already issued signed URLs are bearer links and can remain usable until expiry
+even after logout. They are not persisted in wardrobe rows.
+
+### Automated verification
+
+```sh
+npm run check
+npm run build
+node --experimental-websocket scripts/images.browser.mjs
+```
+
+The image suite intercepts Auth, REST and Storage traffic. It exercises the real
+UI and SDK with synthetic accounts, not hosted uploads or physical camera access.
+It checks type/size errors, local previews, upload failures, persistence after
+reload, failed/successful replacement, signed URL renewal, failed-image recovery,
+removal, account switching and independent demo previews. Unit tests additionally
+exercise partial-thumbnail cleanup, deletion failures, ambiguous database failure
+and cleanup failures. Run personal, auth, Studio, Lookbook and Ideas suites too.
+
+### Manual hosted acceptance (approved test accounts only)
+
+1. Sign in as verified account A. Open `/app/wardrobe/new`; select a small JPEG,
+   enter a name/category and save. Confirm its photo appears in detail and cards
+   after reload. Repeat for PNG and WebP and for a garment without a photo.
+2. In Storage, verify each object is in the private bucket below A's user UUID
+   and its garment UUID; verify database image columns contain keys, not URLs.
+3. On a phone, use **Take a photo**, then gallery selection. Cancel each picker
+   and confirm it does not erase an existing selection or save anything.
+   HEIC is intentionally unsupported; choose JPEG/PNG/WebP.
+4. Reject a GIF and a file larger than 10 MiB before save. Choose a valid photo
+   and remove its preview; confirm no upload occurs until the form is saved.
+5. Edit the garment; replace its photo and save. Confirm the new photo survives
+   reload and the old object is deleted after the successful database update.
+6. To test failure safely, block `/storage/v1/object/*` in DevTools and try a
+   replacement. The form must report failure and retain the existing saved photo.
+   Unblock and retry. Block wardrobe PATCH requests for a separate test: a lost
+   response is ambiguous, so check the saved record before retrying; an unused
+   new upload may remain. Never delete objects directly to simulate rollback.
+7. Remove a saved photo, save and reload. Confirm its garment still exists with
+   a placeholder. Delete a photographed garment and confirm its objects are
+   removed while saved outfits keep the existing removed-item placeholders.
+8. Leave the page open across the 30-minute renewal interval and beyond one hour;
+   confirm images remain available. Background the tab and return; inspect the
+   sign request for fresh URLs. Test offline renewal and recovery on reconnect.
+   A real one-hour wait is not covered by the short synthetic browser suite.
+9. Sign out A and sign in B in the same tab. Confirm A's garments and image URLs
+   are absent from B's UI/cache. Test cross-owner Storage access with B's actual
+   authenticated client; it must be denied by RLS. Do not treat an unexpired
+   bearer signed URL as an authenticated Storage policy test.
+10. Visit `/demo/wardrobe/new`; choose a photo and save details. Confirm the demo
+    still labels the photo preview-only and never uploads it to Storage.

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ImagePlus } from "lucide-react";
-import { errorMessage, isRepositoryError, useIsDemo } from "@/data";
+import { errorMessage, isRepositoryError, useIsDemo, useItemImages } from "@/data";
+import { prepareImage, validateImage } from "@/lib/images";
 import { CATEGORIES, COLORS, OCCASIONS, PATTERNS, SEASONS, STYLES, subcategoriesOf } from "@/domain/taxonomy";
 import { fieldErrors, ITEM_NAME_MAX, itemInputSchema, type ItemInput } from "@/domain/schemas";
 import { Button, Chip, SelectField, TextField } from "@/ui";
 import { GarmentFrame } from "@/ui";
-import type { ClothingItem } from "@/domain/types";
+import type { ClothingItem, PreparedImage } from "@/domain/types";
 
 interface FormValues {
   name: string;
@@ -46,6 +47,13 @@ function valuesFromItem(item?: ClothingItem): FormValues {
   };
 }
 
+type InitialInput = Partial<Omit<ItemInput, "categorySlug">> & { categorySlug?: string };
+function valuesFromInput(input?: InitialInput): FormValues {
+  if (!input) return blank;
+  return { ...blank, ...input, subcategorySlug: input.subcategorySlug ?? "", primaryColor: input.primaryColor ?? "",
+    secondaryColor: input.secondaryColor ?? "", pattern: input.pattern ?? "" };
+}
+
 function TagChoices({ title, options, selected, error, onToggle, field }: {
   title: string;
   options: readonly { slug: string; label: string }[];
@@ -67,22 +75,27 @@ function TagChoices({ title, options, selected, error, onToggle, field }: {
   );
 }
 
-export function WardrobeItemForm({ initialItem, submitLabel, loading = false, onSave }: {
+export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, submitLabel, loading = false, onSave }: {
   initialItem?: ClothingItem;
+  initialInput?: InitialInput;
+  initialPhoto?: File;
   submitLabel: string;
   loading?: boolean;
-  onSave: (input: ItemInput) => Promise<void>;
+  onSave: (input: ItemInput, image?: PreparedImage | null) => Promise<void>;
 }) {
   const isDemo = useIsDemo();
   const formRef = useRef<HTMLFormElement>(null);
   const submitLock = useRef(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [values, setValues] = useState<FormValues>(() => valuesFromItem(initialItem));
+  const [values, setValues] = useState<FormValues>(() => initialItem ? valuesFromItem(initialItem) : valuesFromInput(initialInput));
   const [fieldErrorMap, setFieldErrorMap] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
+  const [photo, setPhoto] = useState<File | null>(initialPhoto ?? null);
   const [photoError, setPhotoError] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
+  const [removeImage, setRemoveImage] = useState(false);
+  const existingImages = useItemImages(initialItem ? [initialItem] : undefined);
+  const existingUrl = initialItem ? existingImages.byItem.get(initialItem.id)?.full : undefined;
 
   useEffect(() => {
     if (!photo) {
@@ -134,8 +147,7 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
     setFieldErrorMap({});
     submitLock.current = true;
     try {
-      // Image selection is intentionally local-only; never pass a browser File as a stored image.
-      await onSave(result.data);
+      await onSave(result.data, isDemo ? undefined : photo ? prepareImage(photo) : removeImage ? null : undefined);
     } catch (error) {
       if (isRepositoryError(error) && error.fieldErrors) {
         setFieldErrorMap(error.fieldErrors);
@@ -244,14 +256,15 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
       <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="font-display text-look text-midnight">Photo preview</h2>
-          {photo && <button type="button" className="text-caption text-graphite-deep underline underline-offset-4" onClick={() => {
+          {(photo || (!isDemo && initialItem?.image && !removeImage)) && <button type="button" disabled={loading} className="text-caption text-graphite-deep underline underline-offset-4" onClick={() => {
+            if (!photo) setRemoveImage(true);
             setPhoto(null);
             setPhotoError("");
             if (photoInputRef.current) photoInputRef.current.value = "";
-          }}>Remove preview</button>}
+          }}>{photo ? "Remove preview" : "Remove photo"}</button>}
         </div>
         <div className="mx-auto w-full max-w-72 lg:mx-0">
-          <GarmentFrame key={previewUrl || "illustration"} item={previewItem} imageUrl={previewUrl || undefined} placeholderTag="Preview only" />
+          <GarmentFrame key={previewUrl || existingUrl || "illustration"} item={previewItem} imageUrl={previewUrl || (!removeImage ? existingUrl : undefined)} placeholderTag={isDemo ? "Preview only" : "No photo"} />
         </div>
         <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xs border border-line-strong px-4 text-ui font-medium text-midnight transition-colors hover:bg-chalk-deep focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-midnight">
           <ImagePlus aria-hidden="true" className="size-4" />
@@ -260,7 +273,8 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
             ref={photoInputRef}
             className="sr-only"
             type="file"
-            accept="image/*"
+            accept={isDemo ? "image/*" : "image/jpeg,image/png,image/webp"}
+            disabled={loading}
             aria-label="Choose a clothing photo for preview"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -270,15 +284,35 @@ export function WardrobeItemForm({ initialItem, submitLabel, loading = false, on
                 event.target.value = "";
                 return;
               }
+              if (!isDemo) {
+                try { validateImage(file); }
+                catch (error) {
+                  setPhotoError(errorMessage(error));
+                  event.target.value = "";
+                  return;
+                }
+              }
               setPhotoError("");
               setPhoto(file);
             }}
           />
         </label>
+        {!isDemo && <label className="block text-caption text-graphite-deep underline underline-offset-4">
+          Take a photo
+          <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={loading}
+            aria-label="Take a clothing photo" onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              try { validateImage(file); setPhoto(file); setPhotoError(""); }
+              catch (error) { setPhotoError(errorMessage(error)); }
+              event.target.value = "";
+            }} />
+        </label>}
+        {!isDemo && removeImage && !photo && <button type="button" disabled={loading} className="text-caption underline" onClick={() => setRemoveImage(false)}>Keep existing photo</button>}
         {photoError && <p className="text-caption text-danger" role="alert">{photoError}</p>}
         <p className="text-caption text-graphite-deep">
           {isDemo ? "Preview only — photos are not saved in this demo. Your clothing details can still be saved."
-            : "Preview only — image uploads are not available yet. Only your clothing details will be saved."}
+            : loading ? "Saving details and photo… Please wait." : "JPEG, PNG or WebP, up to 10 MiB. Photos are private and saved with your piece."}
         </p>
       </aside>
     </form>

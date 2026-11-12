@@ -36,9 +36,9 @@ export function GarmentFrame({
   className?: string;
   placeholderTag?: string;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [failedUrl, setFailedUrl] = useState<string>();
   const kind = useRepositoryKind();
-  const showImage = Boolean(imageUrl) && !failed;
+  const showImage = Boolean(imageUrl) && imageUrl !== failedUrl;
   const hex = getColor(item.primaryColor)?.hex;
   const tag = placeholderTag ?? (kind === "supabase" ? "No photo yet" : "Illustration");
 
@@ -51,7 +51,7 @@ export function GarmentFrame({
           loading="lazy"
           decoding="async"
           draggable={false}
-          onError={() => setFailed(true)}
+          onError={() => setFailedUrl(imageUrl)}
           className="absolute inset-0 size-full object-cover transition-transform duration-200 ease-editorial group-hover:scale-[1.02]"
         />
       ) : (

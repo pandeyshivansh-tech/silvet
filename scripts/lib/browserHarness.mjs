@@ -16,7 +16,10 @@ export async function connectPage(url, errors) {
     if (message.id) {
       const item = pending.get(message.id);
       pending.delete(message.id);
-      if (message.error) item?.reject(new Error("Browser protocol request failed"));
+      // A real AbortController/navigation can cancel an intercepted request
+      // before its synthetic response is fulfilled. That is not an app failure.
+      if (message.error && item?.method === "Fetch.fulfillRequest" && /Invalid InterceptionId/i.test(message.error.message)) item.resolve({});
+      else if (message.error) item?.reject(new Error("Browser protocol request failed"));
       else item?.resolve(message.result);
     }
     if (message.method === "Runtime.exceptionThrown") errors.push(message.params.exceptionDetails.text);
@@ -25,7 +28,7 @@ export async function connectPage(url, errors) {
     if (handler) void handler(message.params).catch(() => errors.push("Browser fixture handler failed"));
   });
   const send = (method, params = {}) => new Promise((resolve, reject) => {
-    const request = ++id; pending.set(request, { resolve, reject }); socket.send(JSON.stringify({ id: request, method, params }));
+    const request = ++id; pending.set(request, { resolve, reject, method }); socket.send(JSON.stringify({ id: request, method, params }));
   });
   const evaluate = async (expression) => {
     const result = await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });

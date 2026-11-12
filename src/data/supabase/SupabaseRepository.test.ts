@@ -4,6 +4,7 @@ import type { Database, OutfitItemRow, SavedOutfitRow, WardrobeItemRow } from "@
 import { itemInputSchema } from "@/domain/schemas";
 import { SupabaseRepository } from "./SupabaseRepository";
 import { mapItem, mapOutfit } from "./mapping";
+import { WardrobeImages } from "./images";
 
 const A = "00000000-0000-4000-8000-000000000001";
 const B = "00000000-0000-4000-8000-000000000002";
@@ -40,8 +41,14 @@ function fixture() {
       return chain;
     }),
     rpc: vi.fn(async () => ({ data: lookId, error: null as Response["error"] })),
+    storage: { from: vi.fn(() => storage) },
   };
-  return { api, responses, calls, repo: new SupabaseRepository(A, api as unknown as SupabaseClient<Database>) };
+  const storage = {
+    upload: vi.fn(async (_path: string, _blob: Blob, _options: unknown) => ({ data: {}, error: null as { message: string } | null })),
+    remove: vi.fn(async (_paths: string[]) => ({ data: [], error: null })),
+    createSignedUrls: vi.fn(async (paths: string[]) => ({ data: paths.map((path) => ({ path, signedUrl: `https://fixture.invalid/${path}` })), error: null })),
+  };
+  return { api, storage, responses, calls, repo: new SupabaseRepository(A, api as unknown as SupabaseClient<Database>) };
 }
 let f: ReturnType<typeof fixture>;
 beforeEach(() => { f = fixture(); });
@@ -77,8 +84,8 @@ describe("Supabase repository operations (SDK fixtures, not hosted verification)
     expect(f.calls[0]?.filters).toContainEqual(["user_id", A]);
   });
   it("deletes a wardrobe row using the existing placeholder-preserving FK", async () => {
-    f.responses.push(ok({ id: garmentId })); await f.repo.deleteItem(garmentId);
-    expect(f.calls[0]?.method).toBe("delete"); expect(f.calls).toHaveLength(1);
+    f.responses.push(ok(item), ok({ id: garmentId })); await f.repo.deleteItem(garmentId);
+    expect(f.calls[1]?.method).toBe("delete"); expect(f.calls).toHaveLength(2);
   });
   it("does not claim a delete succeeded if no owned row was deleted", async () => {
     f.responses.push(ok(null)); await expect(f.repo.deleteItem(garmentId)).rejects.toMatchObject({ code: "not_found" });
@@ -143,11 +150,98 @@ describe("Supabase repository operations (SDK fixtures, not hosted verification)
     f.api.auth.getUser.mockRejectedValue(Object.assign(new Error("expired"), { code: "bad_jwt" }));
     await expect(f.repo.listItems()).rejects.toMatchObject({ code: "unauthenticated" });
   });
-  it("rejects photo mutations and returns honest unavailable image URLs", async () => {
+  it("rejects invalid photo data and foreign image refs", async () => {
     const photo = { full: new Blob(), thumb: new Blob(), mimeType: "image/webp" };
     await expect(f.repo.createItem({ input: itemInputSchema.parse({ name: "Saree", categorySlug: "one-piece" }), image: photo })).rejects.toMatchObject({ code: "storage" });
-    await expect(f.repo.updateItem({ id: garmentId, input: itemInputSchema.parse({ name: "Saree", categorySlug: "one-piece" }), image: null })).rejects.toMatchObject({ code: "storage" });
-    expect(await f.repo.getImageUrls([{ path: "private/full.webp", thumbPath: "private/thumb.webp" }])).toEqual({});
+    await expect(f.repo.getImageUrls([{ path: "private/full.webp", thumbPath: "private/thumb.webp" }])).rejects.toMatchObject({ code: "storage" });
+  });
+});
+
+describe("private wardrobe image lifecycle (mock SDK, not hosted)", () => {
+  const details = itemInputSchema.parse({ name: "Saree", categorySlug: "one-piece" });
+  const blob = new Blob(["fixture"], { type: "image/png" });
+  const image = { full: blob, thumb: blob, mimeType: blob.type };
+  const old = { ...item, image_path: `${A}/${garmentId}/old.png`, image_thumb_path: `${A}/${garmentId}/old.png` };
+  it("uploads a unique object without overwrite and persists only paths", async () => {
+    f.responses.push(ok(item));
+    await f.repo.createItem({ input: details, image });
+    const values = f.calls[0]?.values as { id: string };
+    expect(f.storage.upload).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`^${A}/${values.id}/[^/]+/full.png$`)), blob, { upsert: false, contentType: "image/png" });
+    expect(f.calls[0]?.values).toMatchObject({ image_path: f.storage.upload.mock.calls[0]?.[0] });
+  });
+  it("does not write the database if upload fails", async () => {
+    f.storage.upload.mockResolvedValue({ data: {}, error: { message: "denied" } });
+    await expect(f.repo.createItem({ input: details, image })).rejects.toMatchObject({ code: "storage" });
+    expect(f.api.from).not.toHaveBeenCalled();
+  });
+  it("removes the old object only after successful replacement", async () => {
+    f.responses.push(ok(old), ok(item));
+    await f.repo.updateItem({ id: garmentId, input: details, image });
+    expect(f.storage.remove).toHaveBeenCalledWith([old.image_path]);
+    expect(f.storage.remove.mock.invocationCallOrder[0]).toBeGreaterThan(f.api.from.mock.invocationCallOrder[1]!);
+  });
+  it("cleans a failed replacement upload, retaining the old image on database rejection", async () => {
+    f.responses.push(ok(old), { data: null, error: { code: "23514" } });
+    await expect(f.repo.updateItem({ id: garmentId, input: details, image })).rejects.toThrow();
+    expect(f.storage.remove).toHaveBeenCalledWith([f.storage.upload.mock.calls[0]?.[0]]);
+    expect(f.storage.remove).not.toHaveBeenCalledWith([old.image_path]);
+  });
+  it("retains both objects on ambiguous network failure", async () => {
+    f.responses.push(ok(old), { data: null, error: { code: "", message: "Failed to fetch" } });
+    await expect(f.repo.updateItem({ id: garmentId, input: details, image })).rejects.toThrow();
+    expect(f.storage.remove).not.toHaveBeenCalled();
+  });
+  it("removes an image after a successful explicit removal", async () => {
+    f.responses.push(ok(old), ok(item));
+    await f.repo.updateItem({ id: garmentId, input: details, image: null });
+    expect(f.calls[1]?.values).toMatchObject({ image_path: null, image_thumb_path: null });
+    expect(f.storage.upload).not.toHaveBeenCalled();
+    expect(f.storage.remove).toHaveBeenCalledWith([old.image_path]);
+  });
+  it("deletes the image after deleting its row", async () => {
+    f.responses.push(ok(old), ok({ id: garmentId }));
+    await f.repo.deleteItem(garmentId);
+    expect(f.storage.remove).toHaveBeenCalledWith([old.image_path]);
+  });
+  it("does not delete an image on failed row deletion", async () => {
+    f.responses.push(ok(old), { data: null, error: { code: "42501" } });
+    await expect(f.repo.deleteItem(garmentId)).rejects.toThrow();
+    expect(f.storage.remove).not.toHaveBeenCalled();
+  });
+  it("generates fresh signed URLs on every resolution", async () => {
+    const refs = [{ path: old.image_path, thumbPath: old.image_thumb_path }];
+    expect((await f.repo.getImageUrls(refs))[old.image_path]?.full).toContain("fixture.invalid");
+    await f.repo.getImageUrls(refs);
+    expect(f.storage.createSignedUrls).toHaveBeenCalledTimes(2);
+    expect(f.storage.createSignedUrls).toHaveBeenCalledWith([old.image_path], 3600);
+  });
+  it("never signs another account's paths", async () => {
+    await expect(f.repo.getImageUrls([{ path: `${B}/full.png`, thumbPath: `${B}/full.png` }])).rejects.toThrow();
+    expect(f.storage.createSignedUrls).not.toHaveBeenCalled();
+  });
+  it("does not return image URLs after account switching", async () => {
+    f.api.auth.getSession.mockResolvedValue({ data: { session: { user: { id: B } } }, error: null });
+    await expect(f.repo.getImageUrls([{ path: old.image_path, thumbPath: old.image_thumb_path }])).rejects.toMatchObject({ code: "unauthenticated" });
+  });
+  it("cleans partial uploads when a separate thumbnail upload fails", async () => {
+    f.storage.upload.mockResolvedValueOnce({ data: {}, error: null }).mockResolvedValueOnce({ data: {}, error: { message: "failed" } });
+    await expect(f.repo.createItem({ input: details, image: { ...image, thumb: new Blob(["thumb"], { type: "image/png" }) } })).rejects.toMatchObject({ code: "storage" });
+    expect(f.storage.remove).toHaveBeenCalledTimes(1);
+    expect(f.api.from).not.toHaveBeenCalled();
+  });
+  it("does not turn committed replacement into a failed save if cleanup goes offline", async () => {
+    f.responses.push(ok(old), ok(item));
+    f.storage.remove.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(f.repo.updateItem({ id: garmentId, input: details, image })).resolves.toMatchObject({ id: garmentId });
+  });
+  it("does not attempt cleanup under a different account", async () => {
+    f.api.auth.getUser.mockResolvedValue({ data: { user: { id: B, email_confirmed_at: now } }, error: null });
+    await new WardrobeImages(f.api as unknown as SupabaseClient<Database>, A).cleanup({ path: old.image_path, thumbPath: old.image_thumb_path });
+    expect(f.storage.remove).not.toHaveBeenCalled();
+  });
+  it("reports missing signed URL entries instead of returning invented image URLs", async () => {
+    f.storage.createSignedUrls.mockResolvedValue({ data: [], error: null });
+    await expect(f.repo.getImageUrls([{ path: old.image_path, thumbPath: old.image_thumb_path }])).rejects.toMatchObject({ code: "storage" });
   });
 });
 

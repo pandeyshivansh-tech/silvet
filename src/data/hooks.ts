@@ -128,16 +128,23 @@ export function useItemImages(items: readonly ClothingItem[] | undefined) {
     enabled: refs.length > 0,
     // Signed URLs expire after ~1h (WS6); refresh well before that.
     staleTime: 30 * 60 * 1000,
+    refetchInterval: repo.kind === "supabase" ? 30 * 60 * 1000 : false,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: "always",
+    refetchOnMount: "always",
   });
 
+  // A suspended tab can resume with old cache data before its refetch completes.
+  // Do not render expired bearer URLs while waiting for fresh ones.
+  const expired = repo.kind === "supabase" && Date.now() - query.dataUpdatedAt >= 55 * 60 * 1000;
   return useMemo(() => {
     const byItem = new Map<string, { thumb: string; full: string }>();
-    if (query.data) {
+    if (query.data && !expired) {
       for (const item of items ?? []) {
         const urls = item.image ? query.data[item.image.path] : undefined;
         if (urls) byItem.set(item.id, urls);
       }
     }
     return { byItem, isLoading: query.isLoading && refs.length > 0 };
-  }, [query.data, query.isLoading, items, refs.length]);
+  }, [query.data, query.isLoading, items, refs.length, expired]);
 }
