@@ -62,7 +62,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+0.75rem)] z-[60] flex justify-center px-4 lg:bottom-6"
+        className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-height)+env(safe-area-inset-bottom)+var(--action-bar-height,0rem)+0.75rem)] z-[60] flex justify-center px-4 lg:bottom-6"
       >
         <AnimatePresence mode="wait" initial={false}>
           {current && <ToastView key={current.id} entry={current} onDismiss={dismiss} />}

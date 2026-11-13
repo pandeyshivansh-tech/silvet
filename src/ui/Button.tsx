@@ -15,8 +15,11 @@ export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger" | "dang
 export type ButtonSize = "md" | "sm";
 
 const block =
-  "inline-flex select-none items-center justify-center gap-3 whitespace-nowrap rounded-xs font-sans font-medium " +
-  "transition-[background-color,color,border-color,transform] duration-120 ease-editorial enabled:active:scale-[0.98] disabled:cursor-not-allowed aria-disabled:pointer-events-none";
+  "group/button inline-flex select-none items-center justify-center gap-3 whitespace-nowrap rounded-xs font-sans font-medium " +
+  // Colour changes are quick tweens; the press is a spring: it gives under the finger and springs back on release.
+  "transition-[background-color,color,border-color] duration-120 ease-editorial " +
+  "motion-safe:transition-[background-color,color,border-color,transform] motion-safe:duration-[120ms,120ms,120ms,320ms] motion-safe:ease-spring " +
+  "enabled:active:scale-[0.97] [&:is(a):active]:scale-[0.97] disabled:cursor-not-allowed aria-disabled:pointer-events-none";
 
 const variants: Record<ButtonVariant, string> = {
   primary:
@@ -43,7 +46,7 @@ export function buttonClasses(variant: ButtonVariant = "primary", size: ButtonSi
 
 /** Citron arrow: the signature on every primary button. Graphite when the button is disabled. */
 function PrimaryArrow({ disabled }: { disabled?: boolean }) {
-  return <ArrowRight aria-hidden="true" className={cn("size-4 shrink-0", disabled ? "text-graphite" : "text-citron")} strokeWidth={1.75} />;
+  return <ArrowRight aria-hidden="true" className={cn("size-4 shrink-0 transition-transform duration-200 ease-spring group-hover/button:translate-x-0.5", disabled ? "text-graphite" : "text-citron group-enabled/button:group-hover/button:translate-x-1")} strokeWidth={1.75} />;
 }
 
 /** Loading indicator for primary: three Citron dots. */
@@ -108,7 +111,7 @@ export interface ButtonLinkProps extends LinkProps {
 /** A router link styled as a Button. Use for navigation; use Button for actions. */
 export function ButtonLink({ variant = "primary", size = "md", fullWidth, leadingIcon, arrow = true, className, children, ...rest }: ButtonLinkProps) {
   return (
-    <Link className={cn(buttonClasses(variant, size, fullWidth), className)} {...rest}>
+    <Link viewTransition className={cn(buttonClasses(variant, size, fullWidth), className)} {...rest}>
       <span className="inline-flex items-center gap-2">
         {leadingIcon}
         <span>{children as ReactNode}</span>

@@ -4,7 +4,7 @@
  */
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ClothingItem, ImageRef } from "@/domain/types";
+import type { ClothingItem, ImageRef, Outfit } from "@/domain/types";
 import { useRepository } from "./RepositoryProvider";
 import type { CreateItemArgs, SaveOutfitArgs, UpdateItemArgs } from "./repository";
 import { mutationKeys, queryKeys } from "./queryScope";
@@ -17,12 +17,19 @@ export function useItems() {
   return useQuery({ queryKey: queryKeys.items(repo), queryFn: () => repo.listItems() });
 }
 
-export function useItem(id: string | undefined) {
+/**
+ * `fromList`: read-only screens may show the piece from the wardrobe list while it is fetched, so opening it
+ * from the grid draws at once (and its frame can morph into place). Forms leave it off: they must start from
+ * the fetched record, never a possibly stale list copy.
+ */
+export function useItem(id: string | undefined, fromList = false) {
   const repo = useRepository();
+  const qc = useQueryClient();
   return useQuery({
     queryKey: queryKeys.item(repo, id ?? "none"),
     queryFn: () => repo.getItem(id as string),
     enabled: Boolean(id),
+    placeholderData: fromList ? () => qc.getQueryData<ClothingItem[]>(queryKeys.items(repo))?.find((item) => item.id === id) : undefined,
   });
 }
 
@@ -76,12 +83,15 @@ export function useOutfits() {
   return useQuery({ queryKey: queryKeys.outfits(repo), queryFn: () => repo.listOutfits() });
 }
 
-export function useOutfit(id: string | undefined) {
+/** `fromList`: as for `useItem` — read-only screens only; Studio's editor starts from the fetched look. */
+export function useOutfit(id: string | undefined, fromList = false) {
   const repo = useRepository();
+  const qc = useQueryClient();
   return useQuery({
     queryKey: queryKeys.outfit(repo, id ?? "none"),
     queryFn: () => repo.getOutfit(id as string),
     enabled: Boolean(id),
+    placeholderData: fromList ? () => qc.getQueryData<Outfit[]>(queryKeys.outfits(repo))?.find((outfit) => outfit.id === id) : undefined,
   });
 }
 

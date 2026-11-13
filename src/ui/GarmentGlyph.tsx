@@ -1,4 +1,5 @@
 import type { Slot } from "@/domain/taxonomy";
+import { ACCESSORY_PATHS, FOOTWEAR_PATHS, ONE_PIECE_PATHS, TOP_PATHS } from "./garmentGlyphPaths";
 
 /**
  * Category silhouettes for photo-less garments, empty states and empty slots.
@@ -15,18 +16,24 @@ const PATHS: Record<Slot, string[]> = {
   accessory: ["M10 22h28l2 28H8Z", "M18 22c0-10 12-10 12 0"],
 };
 
+
 export interface GarmentGlyphProps {
   slot: Slot;
+  /** Subcategory slug; picks a closer silhouette where one exists (accessories, sarees, kurtas, juttis…). */
+  subcategory?: string | null;
   className?: string;
   /** Garment colour (hex from the taxonomy). Omit for an outline-only glyph (empty slots, empty states). */
   fill?: string;
   strokeWidth?: number;
 }
 
-export function GarmentGlyph({ slot, className, fill, strokeWidth = 1.25 }: GarmentGlyphProps) {
+export function GarmentGlyph({ slot, subcategory, className, fill, strokeWidth = 1.25 }: GarmentGlyphProps) {
+  const special: Partial<Record<Slot, Record<string, string[]>>> = { accessory: ACCESSORY_PATHS, one_piece: ONE_PIECE_PATHS, top: TOP_PATHS, footwear: FOOTWEAR_PATHS };
+  const closer = special[slot];
+  const paths = (closer && subcategory && closer[subcategory]) || PATHS[slot];
   return (
     <svg viewBox="0 0 48 60" fill="none" className={className} aria-hidden="true">
-      {PATHS[slot].map((d, i) => (
+      {paths.map((d, i) => (
         <path
           key={d}
           d={d}

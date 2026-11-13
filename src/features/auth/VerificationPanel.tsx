@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button, TextField } from "@/ui";
+import { AuthMessage } from "./AuthParts";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { authError, emailCodeSchema, signInSchema } from "@/lib/auth/authFlow";
 
@@ -57,12 +58,12 @@ export function VerificationPanel({ initialEmail = "", next, onVerified, onClose
   return (
     <div>
       <p className="eyebrow mb-3">Legacy account verification</p>
-      <h2 className="font-display text-look text-midnight lg:text-look-lg">Verify this email address</h2>
+      <h2 className="font-display text-look text-midnight">Verify this email address</h2>
       <p className="mt-2 text-body text-graphite-deep">This account still needs email confirmation. Follow the link in the email in this browser, or enter its 6–10 digit code below.</p>
-      {error && <p role="alert" className="mt-5 border border-danger p-3 text-caption text-danger">{error}</p>}
+      {error && <AuthMessage className="mt-5">{error}</AuthMessage>}
       <form noValidate onSubmit={verify} className="mt-6 space-y-5">
-        <TextField ref={emailRef} label="Email address" requiredMark type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} />
-        <TextField ref={codeRef} label="Confirmation code" requiredMark inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 10))} hint="Digits only." />
+        <TextField ref={emailRef} label="Email address" type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <TextField ref={codeRef} label="Confirmation code" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 10))} hint="Digits only." />
         <Button type="submit" fullWidth loading={working} loadingLabel="Confirming">Confirm email</Button>
       </form>
       <Button variant="quiet" className="mt-5 min-h-11" disabled={working || seconds > 0} onClick={resend}>{seconds > 0 ? `Send another code in ${seconds}s` : "Resend confirmation email"}</Button>

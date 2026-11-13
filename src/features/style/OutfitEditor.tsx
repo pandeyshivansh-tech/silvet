@@ -1,12 +1,12 @@
 import { useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeftRight, Check, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, RefreshCw } from "lucide-react";
 import type { ClothingItem, Outfit } from "@/domain/types";
-import { MAX_ACCESSORIES, SLOT_LABELS, itemTypeLabel, type Slot } from "@/domain/taxonomy";
+import type { Slot } from "@/domain/taxonomy";
 import { OUTFIT_NAME_MAX, OUTFIT_NOTES_MAX } from "@/domain/schemas";
 import { errorMessage, useSaveOutfit } from "@/data";
 import { paths, type Base } from "@/app/paths";
-import { Button, Chip, ConfirmDialog, PageHeader, TextAreaField, TextField, useToast } from "@/ui";
+import { Button, Chip, ConfirmDialog, PageHeader, StickyActionBar, TextAreaField, TextField, useToast } from "@/ui";
 import { useUnsavedChanges } from "@/lib/UnsavedChanges";
 import { createDraft, draftInput, removeDraftPiece, selectDraftPiece, switchDraftMode, switchWouldDiscard, validateDraft, type BaseMode, type DraftTarget, type OutfitDraft } from "./outfitDraft";
 import { OutfitPickerSheet } from "./OutfitPickerSheet";
@@ -52,14 +52,6 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
     isDirty: () => dirty,
     isSaving: () => savingLock.current,
   }), [dirty]);
-  const accessorySlots = Array.from({
-    length: Math.max(MAX_ACCESSORIES, draft.pieces.filter((piece) => piece.slot === "accessory").length),
-  }, (_, index) => index);
-
-  const currentPiece = (slot: Slot, index = 0) => {
-    let occurrence = 0;
-    return draft.pieces.find((piece) => piece.slot === slot && occurrence++ === index);
-  };
   const showPicker = (next: DraftTarget) => { if (!savingLock.current) setTarget(next); };
   const applySelection = (item: ClothingItem) => {
     if (!target || savingLock.current) return;
@@ -102,7 +94,6 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
   };
 
   const issues = validation.check.issues.filter((issue) => issue.code !== "missing_base");
-  const modeDescription = draft.mode === "separates" ? "A top and a bottom make the base." : "One garment or set is the base.";
 
   return (
     <>
@@ -113,112 +104,86 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
         lede="Western, Indian, or somewhere between. Start with what you want to wear."
       />
 
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.18fr)_minmax(19rem,0.82fr)] lg:gap-12">
-        <section aria-label="Outfit preview" className="min-w-0">
-          <div className="mb-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="font-display text-look text-midnight">Choose your base</h2>
-                <p className="mt-1 text-caption text-graphite-deep">{modeDescription}</p>
-              </div>
-              <ArrowLeftRight aria-hidden="true" className="mt-1 size-5 text-graphite" strokeWidth={1.5} />
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Outfit base">
-              <Chip selected={draft.mode === "separates"} disabled={isSaving} onClick={() => chooseMode("separates")}>Top + bottom</Chip>
-              <Chip selected={draft.mode === "one_piece"} disabled={isSaving} onClick={() => chooseMode("one_piece")}>One-piece / set</Chip>
-            </div>
-          </div>
+      {/* Board left (spans the column); name, notes and Save stack on the right from 1024 px. The Save bar is a
+          direct grid item so on phones it stays stuck above the tab bar for the whole workspace. */}
+      <div className="grid items-start gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(17rem,0.7fr)] lg:grid-rows-[auto_auto_1fr]">
+        <section aria-label="Outfit preview" className="min-w-0 lg:row-span-3">
           <OutfitPreview
             draft={draft}
             items={items}
             imageByItem={imageByItem}
             onChoose={showPicker}
             onRemove={remove}
+            active={target}
             disabled={isSaving}
+            baseControl={
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Outfit base">
+                <Chip selected={draft.mode === "separates"} disabled={isSaving} onClick={() => chooseMode("separates")}>Top + bottom</Chip>
+                <Chip selected={draft.mode === "one_piece"} disabled={isSaving} onClick={() => chooseMode("one_piece")}>One-piece / set</Chip>
+              </div>
+            }
           />
         </section>
 
-        <aside className="min-w-0 lg:sticky lg:top-8">
-          <div className="border-t border-line pt-5 lg:border-t-0 lg:pt-0">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="mb-2 text-caption text-graphite-deep">Look composition</p>
-                <h2 className="font-display text-section text-midnight">Your choices</h2>
-              </div>
-              {(draft.pieces.length > 0 || draft.name) && (
-                <button
-                  type="button"
-                  disabled={isSaving}
-                  onClick={() => setConfirmClear(true)}
-                  className="inline-flex min-h-11 items-center gap-2 text-ui text-graphite-deep underline decoration-line-strong underline-offset-4 hover:text-midnight disabled:text-graphite"
-                >
-                  <RefreshCw className="size-4" strokeWidth={1.5} /> Clear look
-                </button>
-              )}
-            </div>
-
-            <div className="mt-5 hidden space-y-2 lg:block">
-              {draft.mode === "separates" ? (
-                <>
-                  <SlotLine label="Top" slot="top" piece={currentPiece("top")} items={items} onChoose={() => showPicker({ slot: "top" })} onRemove={() => remove("top")} disabled={isSaving} />
-                  <SlotLine label="Bottom" slot="bottom" piece={currentPiece("bottom")} items={items} onChoose={() => showPicker({ slot: "bottom" })} onRemove={() => remove("bottom")} disabled={isSaving} />
-                </>
-              ) : (
-                <SlotLine label="One-piece / set" slot="one_piece" piece={currentPiece("one_piece")} items={items} onChoose={() => showPicker({ slot: "one_piece" })} onRemove={() => remove("one_piece")} disabled={isSaving} />
-              )}
-              <SlotLine label="Layer" slot="outerwear" piece={currentPiece("outerwear")} items={items} onChoose={() => showPicker({ slot: "outerwear" })} onRemove={() => remove("outerwear")} disabled={isSaving} optional />
-              <SlotLine label="Footwear" slot="footwear" piece={currentPiece("footwear")} items={items} onChoose={() => showPicker({ slot: "footwear" })} onRemove={() => remove("footwear")} disabled={isSaving} optional />
-              {accessorySlots.map((index) => (
-                <SlotLine key={index} label={`Accessory ${index + 1}${index >= MAX_ACCESSORIES ? " · saved slot" : ` · up to ${MAX_ACCESSORIES}`}`} slot="accessory" index={index} piece={currentPiece("accessory", index)} items={items} onChoose={() => showPicker({ slot: "accessory", index })} onRemove={() => remove("accessory", index)} disabled={isSaving} optional />
-              ))}
-            </div>
-
-            <div className="mt-6 border-t border-line pt-5">
-              <TextField
-                label="Name this look"
-                optional
-                placeholder="e.g. Friday at the gallery"
-                maxLength={OUTFIT_NAME_MAX}
-                value={draft.name}
+        <section aria-label="Look details" className="min-w-0 border-t border-line pt-6 lg:border-t-0 lg:pt-1">
+          <div className="flex items-baseline justify-between gap-4">
+            <h2 className="font-display text-look text-midnight">Name and notes</h2>
+            {(draft.pieces.length > 0 || draft.name) && (
+              <button
+                type="button"
                 disabled={isSaving}
-                error={validation.nameError}
-                onChange={(event) => {
-                  setDraft((current) => ({ ...current, name: event.target.value }));
-                }}
-              />
-              <TextAreaField label="Notes" optional maxLength={OUTFIT_NOTES_MAX} value={draft.notes ?? ""}
-                disabled={isSaving} error={validation.notesError}
-                className="mt-5"
-                onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value || null }))} />
-            </div>
-
-            <div className="mt-5" aria-live="polite">
-              {issues.length > 0 ? (
-                <ul className="space-y-2 text-caption text-danger" role="alert">
-                  {issues.map((issue, index) => <li key={`${issue.code}-${index}`} className="flex gap-2"><span aria-hidden="true">!</span><span>{issue.message}</span></li>)}
-                </ul>
-              ) : validation.check.complete ? (
-                <p className="flex items-center gap-2 text-caption text-graphite-deep"><Check aria-hidden="true" className="size-4 text-midnight" /> The base is complete. Add anything else you want.</p>
-              ) : (
-                <p className="text-caption text-graphite-deep">{draft.mode === "separates" ? "Add a top and bottom, or choose a one-piece." : "Choose a one-piece or set to complete this base."}</p>
-              )}
-            </div>
-
-            <Button
-              className="mt-6 w-full"
-              loading={isSaving}
-              loadingLabel="Saving"
-              disabled={!validation.canSave || Boolean(outfit && !hasChanges)}
-              onClick={() => void save()}
-            >
-              {outfit ? "Save changes" : "Save this look"}
-            </Button>
-            <p className="mt-3 text-center text-caption text-graphite-deep">
-              {outfit ? "Your notes and source stay with this look." : base === "/demo"
-                ? "Saved looks stay in this demo session only." : "Saved looks are stored in your account."}
-            </p>
+                onClick={() => setConfirmClear(true)}
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 text-caption text-graphite-deep underline decoration-line-strong underline-offset-4 hover:text-midnight disabled:text-graphite"
+              >
+                <RefreshCw aria-hidden="true" className="size-3.5" strokeWidth={1.5} /> Clear look
+              </button>
+            )}
           </div>
-        </aside>
+          <div className="mt-3 space-y-5">
+            <TextField
+              label="Name this look"
+              optional
+              placeholder="e.g. Friday at the gallery"
+              maxLength={OUTFIT_NAME_MAX}
+              value={draft.name}
+              disabled={isSaving}
+              error={validation.nameError}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
+            />
+            <TextAreaField label="Notes" optional rows={2} maxLength={OUTFIT_NOTES_MAX} value={draft.notes ?? ""}
+              disabled={isSaving} error={validation.notesError}
+              onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value || null }))} />
+          </div>
+          <div className="mt-5" aria-live="polite">
+            {issues.length > 0 ? (
+              <ul className="space-y-2 text-caption text-danger" role="alert">
+                {issues.map((issue, index) => <li key={`${issue.code}-${index}`} className="flex gap-2"><span aria-hidden="true">!</span><span>{issue.message}</span></li>)}
+              </ul>
+            ) : validation.check.complete ? (
+              <p className="flex items-center gap-2 text-caption text-graphite-deep"><Check aria-hidden="true" className="size-4 animate-pop text-midnight" /> The base is complete. Add anything else you want.</p>
+            ) : (
+              <p className="text-caption text-graphite-deep">{draft.mode === "separates" ? "Add a top and bottom, or choose a one-piece." : "Choose a one-piece or set to complete this base."}</p>
+            )}
+          </div>
+        </section>
+
+        <StickyActionBar label="Save" className="lg:-mt-4">
+          <Button
+            className="flex-1"
+            loading={isSaving}
+            loadingLabel="Saving"
+            disabled={!validation.canSave || Boolean(outfit && !hasChanges)}
+            onClick={() => void save()}
+          >
+            {outfit ? "Save changes" : "Save this look"}
+          </Button>
+        </StickyActionBar>
+        <p className="-mt-6 text-caption text-graphite-deep lg:-mt-8">
+          {outfit ? "Your notes and source stay with this look." : base === "/demo"
+            ? "Saved looks stay in this demo session only." : "Saved looks are stored in your account."}
+        </p>
       </div>
 
       <OutfitPickerSheet
@@ -257,42 +222,3 @@ export function OutfitEditor({ outfit, seed, ref, items, imageByItem, base }: Pr
   );
 }
 
-function SlotLine({
-  label, slot, index = 0, piece, items, onChoose, onRemove, disabled, optional = false,
-}: {
-  label: string;
-  slot: Slot;
-  index?: number;
-  piece?: OutfitDraft["pieces"][number];
-  items: readonly ClothingItem[];
-  onChoose: () => void;
-  onRemove: () => void;
-  disabled: boolean;
-  optional?: boolean;
-}) {
-  const selected = piece?.itemId ? items.find((item) => item.id === piece.itemId) : undefined;
-  const removed = Boolean(piece && !piece.itemId);
-  return (
-    <div className="flex min-h-14 items-center gap-3 border-b border-line py-2.5">
-      <div className="min-w-0 flex-1">
-        <p className="text-caption text-graphite-deep">{label}{optional && !selected && !removed ? " · optional" : ""}</p>
-        <p className="truncate text-ui font-medium text-midnight">{selected?.name ?? (removed ? "No longer in your wardrobe" : "Choose a piece")}</p>
-        {selected && <p className="truncate text-caption text-graphite-deep">{itemTypeLabel(selected)}</p>}
-      </div>
-      {selected || removed ? (
-        <>
-          <button type="button" onClick={onChoose} disabled={disabled} className="min-h-11 px-2 text-ui text-midnight underline decoration-line-strong underline-offset-4 disabled:text-graphite">
-            Replace
-          </button>
-          <button type="button" aria-label={`Remove ${SLOT_LABELS[slot].toLowerCase()}${slot === "accessory" ? ` ${index + 1}` : ""}`} onClick={onRemove} disabled={disabled} className="inline-flex size-11 items-center justify-center rounded-xs text-graphite-deep hover:bg-chalk-deep hover:text-danger disabled:text-graphite">
-            <Trash2 className="size-4" strokeWidth={1.5} />
-          </button>
-        </>
-      ) : (
-        <button type="button" onClick={onChoose} disabled={disabled} className="inline-flex min-h-11 items-center gap-2 px-2 text-ui font-medium text-midnight underline decoration-line-strong underline-offset-4 disabled:text-graphite">
-          <Plus className="size-4" strokeWidth={1.75} /> Add
-        </button>
-      )}
-    </div>
-  );
-}

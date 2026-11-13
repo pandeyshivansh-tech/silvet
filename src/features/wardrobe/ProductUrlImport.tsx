@@ -44,7 +44,11 @@ export function ProductUrlImport({ onReady, onCancel }: {
     }
   }
   return (
-    <form onSubmit={submit} noValidate className="max-w-xl space-y-5">
+    <form onSubmit={submit} noValidate aria-labelledby="product-import-heading" className="mb-10 max-w-xl space-y-5 border-y border-line py-6">
+      <div>
+        <h2 id="product-import-heading" className="font-display text-look text-midnight">Import from a product page</h2>
+        <p className="mt-1 text-caption text-graphite-deep">Paste a link. You review the photo and details before anything is saved.</p>
+      </div>
       <TextField label="Product URL" type="url" name="productUrl" value={url} maxLength={4096}
         onChange={(event) => setUrl(event.target.value)} error={error} placeholder="https://retailer.com/product" />
       <p className="text-caption text-graphite-deep">Public product pages only. You can review and edit every detail before saving. Some retailers restrict automated access.</p>

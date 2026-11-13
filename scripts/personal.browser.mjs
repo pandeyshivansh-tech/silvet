@@ -55,7 +55,7 @@ try {
 
   await open("/app/ideas");
   await check("Ideas route opens the existing engine with personal garments", contains("Find your next look"));
-  await check("Saved preferences gently boost Ideas without forcing the filter", "[...document.querySelectorAll('select')].some(s=>s.value==='') && document.body.innerText.includes('All saved style preferences gently boost matching garment tags')");
+  await check("Saved preferences gently boost Ideas without forcing the filter", "[...document.querySelectorAll('select')].some(s=>s.value==='') && document.body.innerText.includes('The styles you saved get a small head start here')");
   await check("Personal Ideas never claims to be the demo", `!${contains("Demo pieces, saved looks")} && !${contains("Demo wardrobe")}`);
   await click("Save look");
   await check("Ideas saves a personal recommendation through the real repository", contains("View saved look"));
@@ -67,7 +67,7 @@ try {
   await check("Deleting a personal recommendation leaves the wardrobe intact", "location.pathname==='/app/lookbook'");
   assert.equal(data.wardrobe.size, 3); assert.equal(data.outfits.size, 0);
   await open("/app/ideas");
-  await check("Returning to Ideas keeps filters optional while scoring saved preferences", "[...document.querySelectorAll('select')].some(s=>s.value==='') && document.body.innerText.includes('All saved style preferences gently boost matching garment tags')");
+  await check("Returning to Ideas keeps filters optional while scoring saved preferences", "[...document.querySelectorAll('select')].some(s=>s.value==='') && document.body.innerText.includes('The styles you saved get a small head start here')");
   await evaluate(`(() => {const s=[...document.querySelectorAll('select')].find(s=>s.value==='');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'casual');s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await check("Ideas selections can change independently of profile preferences", "[...document.querySelectorAll('select')].some(s=>s.value==='casual')");
   assert.deepEqual(auth.rows.get(accountA).style_preferences, ["fusion"]);

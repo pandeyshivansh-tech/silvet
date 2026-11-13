@@ -4,7 +4,7 @@ import { paths } from "@/app/paths";
 import { useBasePath } from "@/data";
 import type { ClothingItem } from "@/domain/types";
 import { CATEGORIES, SLOT_LABELS, SUBCATEGORIES, isIndianWear, itemTypeLabel, slotOf } from "@/domain/taxonomy";
-import { ButtonLink, Chip, ChipRow, ItemCard, Sheet } from "@/ui";
+import { ButtonLink, Chip, ChipRow, ItemCard, Sheet, cn } from "@/ui";
 import { selectDraftPiece, validateDraft, type DraftTarget, type OutfitDraft } from "./outfitDraft";
 
 interface Props {
@@ -50,6 +50,8 @@ export function OutfitPickerSheet({ open, onOpenChange, target, items, draft, im
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
+      phoneHeight="half"
+      size="wide"
       title={target ? `${target.slot === "accessory" ? `Accessory ${((target.index ?? 0) + 1)}` : SLOT_LABELS[target.slot]}` : "Choose a piece"}
       description={target ? `From your wardrobe · ${categoryLabel ?? SLOT_LABELS[target.slot]}` : undefined}
     >
@@ -65,19 +67,26 @@ export function OutfitPickerSheet({ open, onOpenChange, target, items, draft, im
           />
           {query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute top-1/2 right-1.5 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-xs text-graphite-deep hover:bg-chalk-deep"><X className="size-4" /></button>}
         </div>
-        <label className="flex min-h-11 items-center gap-3 text-ui text-midnight">
-          <input type="checkbox" checked={indianOnly} onChange={(event) => setIndianOnly(event.target.checked)} className="size-4 accent-midnight" />
-          Indian wear
-        </label>
+        <div className="flex items-center gap-2">
+          {/* A real checkbox in a chip-shaped label: Lilac when on, like every other selected filter. */}
+          <label className={cn(
+            "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xs border px-3 text-ui transition-colors duration-120 ease-editorial has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-midnight",
+            indianOnly ? "border-lilac bg-lilac font-medium text-midnight" : "border-line-strong text-midnight hover:bg-chalk-deep",
+          )}>
+            <input type="checkbox" checked={indianOnly} onChange={(event) => setIndianOnly(event.target.checked)} className="sr-only" />
+            Indian wear
+          </label>
+          <p className="ml-auto text-caption text-graphite-deep" aria-live="polite">{candidates.length} {candidates.length === 1 ? "piece" : "pieces"}</p>
+        </div>
         {availableSubs.length > 0 && (
           <ChipRow label="Filter by garment type" className="mx-0 px-0">
-            <Chip selected={!subcategory} onClick={() => setSubcategory("")}>All types</Chip>
-            {availableSubs.map((sub) => <Chip key={sub.slug} selected={subcategory === sub.slug} onClick={() => setSubcategory(subcategory === sub.slug ? "" : sub.slug)}>{sub.label}</Chip>)}
+            <Chip variant="tab" selected={!subcategory} onClick={() => setSubcategory("")}>All types</Chip>
+            {availableSubs.map((sub) => <Chip key={sub.slug} variant="tab" selected={subcategory === sub.slug} onClick={() => setSubcategory(subcategory === sub.slug ? "" : sub.slug)}>{sub.label}</Chip>)}
           </ChipRow>
         )}
 
         {candidates.length > 0 ? (
-          <div className="grid grid-cols-2 gap-x-3 gap-y-6">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-6 lg:gap-x-5 lg:gap-y-8">
             {candidates.map((item) => (
               <ItemCard
                 key={item.id}

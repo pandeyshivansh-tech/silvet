@@ -1,4 +1,5 @@
-import type { ClothingItem, Outfit, OutfitPiece } from "@/domain/types";
+import type { ClothingItem, Outfit, OutfitPiece, OutfitSource } from "@/domain/types";
+import { OCCASIONS, type OccasionSlug } from "@/domain/taxonomy";
 
 export interface ResolvedOutfitPiece {
   piece: OutfitPiece;
@@ -41,5 +42,30 @@ export function orderOutfits(outfits: readonly Outfit[]): { outfits: Outfit[]; n
       ? [...outfits].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
       : [...outfits],
     newestFirst: outfits.length > 0 && reliable,
+  };
+}
+
+/** How the look was made, in the words the Lookbook uses ("4 pieces · from Ideas"). */
+export function sourceLabel(source: OutfitSource): string {
+  return source === "suggestion" ? "from Ideas" : "built in Studio";
+}
+
+/**
+ * Occasions every tagged piece in the look shares, in taxonomy order. Needs at least two tagged pieces,
+ * so one garment's tags are never presented as the look's context. Untagged pieces don't veto.
+ */
+export function sharedOccasions(rows: readonly ResolvedOutfitPiece[]): OccasionSlug[] {
+  const tagged = rows.flatMap((row) => (row.item && row.item.occasionTags.length > 0 ? [row.item.occasionTags] : []));
+  if (tagged.length < 2) return [];
+  return OCCASIONS.map((occasion) => occasion.slug).filter((slug) => tagged.every((tags) => tags.includes(slug)));
+}
+
+const BASE_ORDER: readonly OutfitPiece["slot"][] = ["one_piece", "top", "bottom", "outerwear"];
+
+/** Flat-lay order: the base and layer first (top to toe), then footwear and accessories. Saved order breaks ties. */
+export function flatLay(rows: readonly ResolvedOutfitPiece[]) {
+  return {
+    main: BASE_ORDER.flatMap((slot) => rows.filter((row) => row.piece.slot === slot)),
+    finishing: [...rows.filter((row) => row.piece.slot === "footwear"), ...rows.filter((row) => row.piece.slot === "accessory")],
   };
 }

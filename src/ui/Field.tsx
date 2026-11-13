@@ -15,6 +15,8 @@ interface FieldChromeProps {
   optional?: boolean;
   /** Show "required" on the right of the label. */
   requiredMark?: boolean;
+  /** Keep the label for assistive tech only (compact search rows); the placeholder must then say what to type. */
+  hideLabel?: boolean;
   className?: string;
 }
 
@@ -30,6 +32,7 @@ function Chrome({
   label,
   optional,
   requiredMark,
+  hideLabel,
   hint,
   hintId,
   error,
@@ -39,7 +42,7 @@ function Chrome({
 }: FieldChromeProps & { id: string; hintId?: string; errorId?: string; children: ReactNode }) {
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <label htmlFor={id} className="flex items-baseline justify-between gap-3 text-ui font-medium text-midnight">
+      <label htmlFor={id} className={hideLabel ? "sr-only" : "flex items-baseline justify-between gap-3 text-ui font-medium text-midnight"}>
         <span>{label}</span>
         {(optional || requiredMark) && <span className="text-caption font-normal text-graphite-deep">{optional ? "optional" : "required"}</span>}
       </label>
@@ -70,23 +73,34 @@ const controlState = (error?: string | null) =>
     ? "border-danger ring-1 ring-danger ring-inset focus:ring-2"
     : "border-line-strong focus:border-midnight focus:ring-1 focus:ring-midnight focus:ring-inset";
 
-export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement>, FieldChromeProps {}
+export interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement>, FieldChromeProps {
+  /** A small control inside the right edge of the box (e.g. a password "Show" toggle); it keeps its own label. */
+  trailing?: ReactNode;
+}
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
-  { label, hint, error, optional, requiredMark, className, ...rest },
+  { label, hint, error, optional, requiredMark, hideLabel, className, trailing, ...rest },
   ref,
 ) {
   const ids = useFieldIds(error, hint);
+  const input = (
+    <input
+      ref={ref}
+      id={ids.id}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={ids.describedBy}
+      className={cn(control, controlState(error), "h-12", trailing ? "pr-20" : null)}
+      {...rest}
+    />
+  );
   return (
-    <Chrome {...ids} label={label} hint={hint} error={error} optional={optional} requiredMark={requiredMark} className={className}>
-      <input
-        ref={ref}
-        id={ids.id}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={ids.describedBy}
-        className={cn(control, controlState(error), "h-12")}
-        {...rest}
-      />
+    <Chrome {...ids} label={label} hint={hint} error={error} optional={optional} requiredMark={requiredMark} hideLabel={hideLabel} className={className}>
+      {trailing ? (
+        <div className="relative">
+          {input}
+          <div className="absolute inset-y-0 right-1 flex items-center">{trailing}</div>
+        </div>
+      ) : input}
     </Chrome>
   );
 });

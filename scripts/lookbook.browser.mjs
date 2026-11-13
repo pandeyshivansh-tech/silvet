@@ -140,10 +140,10 @@ try {
   await check("Grid error offers retry", contains("Your looks didn’t load."));
   await evaluate("window.__lookbookTest.proto.listOutfits=window.__lookbookTest.list");
   await click("Try again");
-  await check("Retry loads saved outfit previews", `Boolean(${control("Open this look")}) && ${contains("newest first")}`);
+  await check("Retry loads saved outfit previews", `Boolean(${control("Open look")}) && ${contains("newest first")}`);
   await screenshot("desktop-grid");
   const initialList = await evaluate("(async()=>{const {DemoRepository}=await import('/src/data/demo/DemoRepository.ts');return await new DemoRepository().listOutfits();})()");
-  await click("Open this look");
+  await click("Open look");
   await check("Detail shows saved pieces and edit action", `Boolean(${control("Edit in Studio")}) && ${contains("The pieces")}`);
   const detailPath = await evaluate("location.pathname");
   const selectedId = decodeURIComponent(detailPath.split("/").pop());
@@ -209,7 +209,9 @@ try {
   await evaluate("scrollTo(0,0)");
   await pause();
   await screenshot("mobile-detail");
-  await check("Mobile detail has usable edit/delete controls without overflow", `document.documentElement.scrollWidth<=innerWidth && Boolean(${control("Edit in Studio")}) && Boolean(${control("Delete look")})`);
+  // Phones keep Edit in the sticky bar and put Delete behind the look's ⋯ menu (same pattern as garment detail).
+  await check("Mobile detail has usable edit/delete controls without overflow", `document.documentElement.scrollWidth<=innerWidth && Boolean(${control("Edit in Studio")}) && Boolean(${control("More actions for Untitled look")})`);
+  await click("More actions for Untitled look");
   await click("Delete look");
   await check("Mobile delete dialog fits the viewport", `(() => {const r=document.querySelector('[role="alertdialog"]').getBoundingClientRect();return r.left>=0 && r.right<=innerWidth+1 && r.bottom<=innerHeight;})()`);
   await click("Keep this look");
@@ -235,7 +237,7 @@ try {
   await navigate("/demo/lookbook");
   await check("Empty Lookbook links to Studio", `Boolean(${control("Create an outfit")}) && (${control("Create an outfit")}).getAttribute('href')==='/demo/style'`);
   await reload();
-  await check("Empty Lookbook remains empty after reload", `Boolean(${control("Create an outfit")}) && !${contains("Open this look")}`);
+  await check("Empty Lookbook remains empty after reload", `Boolean(${control("Create an outfit")}) && !${contains("Open look")}`);
   await click("Create an outfit");
   await check("Empty-state action opens existing Studio", "location.pathname==='/demo/style' && Boolean(document.querySelector('input[placeholder=\"e.g. Friday at the gallery\"]'))");
   assert.equal(errors.length, 0, JSON.stringify(errors));

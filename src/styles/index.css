@@ -98,14 +98,25 @@
   /* ---------- motion (CSS side; JS presets live in src/motion/presets.ts) ---------- */
   --ease-editorial: cubic-bezier(0.2, 0, 0, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Touch spring: settles in ~320 ms with a 5% overshoot. Only for things a hand moves (press, select, land). */
+  --ease-spring: linear(0, 0.089, 0.283, 0.5, 0.695, 0.847, 0.952, 1.014, 1.045, 1.054, 1.05, 1.04, 1.028, 1.017, 1.009, 1.003, 0.999, 0.998, 0.997, 0.997, 1);
 
-  --animate-sweep: sweep 2.4s var(--ease-editorial) infinite;
-  @keyframes sweep {
-    0% {
-      background-position: -160% 0;
-    }
+  --animate-skeleton: skeleton 2.4s var(--ease-editorial) infinite;
+  @keyframes skeleton {
+    0%,
     100% {
-      background-position: 160% 0;
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+  /* A selection tick or badge arriving: scales in on the touch spring. */
+  --animate-pop: pop 0.32s var(--ease-spring) both;
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
     }
   }
   --animate-pulse-dot: pulse-dot 1.2s ease-in-out infinite;
@@ -132,6 +143,8 @@
   :root {
     color-scheme: light;
     --tabbar-height: 4rem;
+    /* Phone/tablet top bar (AppShell); below lg focus and anchor scrolling clear it. */
+    --topbar-height: 3.5rem;
     /* Focus ring colour: Midnight on Chalk; .surface-midnight switches it to Citron. */
     --focus-ring: var(--color-midnight);
   }
@@ -139,6 +152,13 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-rendering: optimizeLegibility;
+    scroll-padding-top: calc(var(--topbar-height) + env(safe-area-inset-top));
+  }
+
+  @media (width >= 64rem) {
+    html {
+      scroll-padding-top: 0;
+    }
   }
 
   body {
@@ -196,6 +216,10 @@
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -203,18 +227,60 @@
   }
 }
 
-/* Horizontal chip rows fade at the edges. Never use over garment imagery. */
-@utility fade-x {
-  mask-image: linear-gradient(to right, transparent 0, black 1rem, black calc(100% - 1.5rem), transparent 100%);
-}
-
-/* Skeleton: Chalk Deep with a slow tonal sweep — no colour. */
+/* Skeleton: flat Chalk Deep with a slow opacity pulse — no gradient, no colour. */
 @utility skeleton {
   background-color: var(--color-chalk-deep);
-  background-image: linear-gradient(90deg, transparent 0%, rgb(244 240 233 / 0.55) 50%, transparent 100%);
-  background-size: 60% 100%;
-  background-repeat: no-repeat;
-  animation: var(--animate-sweep);
+  animation: var(--animate-skeleton);
+}
+
+/* Selvedge S: the edge detail is Citron only on Midnight; elsewhere the mark is one ink. */
+.surface-midnight .silvet-detail {
+  color: var(--color-citron);
+}
+
+/*
+ * Page transitions (View Transitions API, started by React Router's `viewTransition` links; browsers without
+ * it just navigate). The old page leaves on the 120 ms exit, the new one settles in on the 200 ms tween.
+ * The shell (phone top bar, tab bar, desktop rail) holds still: only its live new image shows, so the Citron
+ * indicator's spring is never doubled. A garment or look opened from a list morphs into its page on the touch spring.
+ */
+::view-transition-old(root) {
+  animation: 120ms var(--ease-exit) both vt-leave;
+}
+::view-transition-new(root) {
+  animation: 200ms var(--ease-editorial) 40ms both vt-enter;
+}
+::view-transition-old(shell-top),
+::view-transition-old(shell-tabbar),
+::view-transition-old(shell-rail) {
+  display: none;
+}
+::view-transition-new(shell-top),
+::view-transition-new(shell-tabbar),
+::view-transition-new(shell-rail) {
+  animation: none;
+}
+::view-transition-group(garment),
+::view-transition-group(look) {
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-spring);
+}
+::view-transition-old(garment),
+::view-transition-new(garment),
+::view-transition-old(look),
+::view-transition-new(look) {
+  animation-timing-function: var(--ease-editorial);
+}
+@keyframes vt-leave {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes vt-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
 }
 
 /* Respect "Reduce motion" for every CSS transition/animation (Motion handles JS animation). */
@@ -226,5 +292,10 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

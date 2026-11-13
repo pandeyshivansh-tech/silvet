@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { authError, signUpSchema } from "@/lib/auth/authFlow";
 import { AuthFrame } from "./AuthFrame";
+import { AuthMessage, PasswordToggle } from "./AuthParts";
 import { Button, ButtonLink, Spinner, TextField } from "@/ui";
 import { paths } from "@/app/paths";
 
@@ -16,6 +17,7 @@ export default function UpdatePasswordPage() {
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const [done, setDone] = useState(false);
@@ -38,13 +40,14 @@ export default function UpdatePasswordPage() {
     catch (reason) { setError(authError(reason).message); }
     finally { lock.current = false; setWorking(false); }
   }
-  return <AuthFrame eyebrow="Account recovery" title={done ? "Password updated" : "Choose a new password"} description={done ? "Your new password has been saved." : "Use a strong password you haven’t used elsewhere."}>
-    {done ? <ButtonLink to={paths.profile()}>Continue to your account</ButtonLink> : validSession ? <form noValidate onSubmit={(event) => void submit(event)} className="space-y-5">
-      <TextField label="New password" type="password" autoComplete="new-password" minLength={8} requiredMark disabled={working} value={password} onChange={(event) => setPassword(event.target.value)} />
-      <TextField label="Confirm new password" type="password" autoComplete="new-password" requiredMark disabled={working} value={confirm} onChange={(event) => setConfirm(event.target.value)} />
-      <Button type="submit" loading={working} loadingLabel="Updating password">Save new password</Button>
-    </form> : ready ? <p role="alert">Your reset session has expired or changed. Request a new link.</p> : !error && <Spinner label="Checking reset link" />}
-    {error && <p role="alert" className="mt-4 text-danger">{error}</p>}
-    {!done && <ButtonLink className="mt-5" variant="quiet" to={paths.resetPassword()}>Request a new reset link</ButtonLink>}
+  return <AuthFrame title={done ? "Password updated" : "Choose a new password"} description={done ? "Your new password has been saved." : "Use a strong password you haven’t used elsewhere."}>
+    {error && <AuthMessage className="mb-5">{error}</AuthMessage>}
+    {done ? <ButtonLink to={paths.profile()} fullWidth>Continue to your account</ButtonLink> : validSession ? <form noValidate onSubmit={(event) => void submit(event)} className="space-y-5">
+      <TextField label="New password" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} hint="At least 8 characters." disabled={working} value={password} onChange={(event) => setPassword(event.target.value)}
+        trailing={<PasswordToggle shown={showPassword} onToggle={() => setShowPassword((value) => !value)} />} />
+      <TextField label="Confirm new password" type={showPassword ? "text" : "password"} autoComplete="new-password" disabled={working} value={confirm} onChange={(event) => setConfirm(event.target.value)} />
+      <Button type="submit" fullWidth loading={working} loadingLabel="Updating password">Save new password</Button>
+    </form> : ready ? <AuthMessage>Your reset session has expired or changed. Request a new link.</AuthMessage> : !error && <Spinner label="Checking reset link" />}
+    {!done && <ButtonLink className="mt-5 min-h-11" variant="quiet" to={paths.resetPassword()}>Request a new reset link</ButtonLink>}
   </AuthFrame>;
 }

@@ -123,7 +123,9 @@ try {
   await photo();
   data.state.failWrites = true;
   await click("Save changes");
-  await check("Database failure keeps the replacement draft and reports failure", contains("could not be loaded or saved"));
+  // A real network abort during this write (SupabaseRepository.ts classifies it as "network") is as valid a failure
+  // as the fixture's injected DB error ("unknown"): both keep the draft, so the check accepts either message.
+  await check("Database failure keeps the replacement draft and reports failure", `${contains("could not be loaded or saved")} || ${contains("couldn’t reach your wardrobe")}`);
   assert.equal(data.wardrobe.get(item.id).image_path, oldPath);
   assert(objects.has(oldPath));
   assert.equal(objects.size, 1);
@@ -147,7 +149,7 @@ try {
   await navigate("/app/wardrobe");
   await check("Another account cannot see the previous account garment", `!${contains("Private photo kurta")} && !document.querySelector('img[src*="${accountA}"]')`);
   await navigate("/demo/wardrobe/new");
-  await check("Demo still describes photos as preview only", contains("photos are not saved in this demo"));
+  await check("Demo still describes photos as preview only", contains("Photos are not saved in this demo"));
   await photo();
   await check("Demo photo previews remain local", "Boolean(document.querySelector('img[src^=\"blob:\"]'))");
   assert.equal(objects.size, 0);

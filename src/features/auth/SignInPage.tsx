@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
-import { ArrowUpRight, Eye, EyeOff } from "lucide-react";
 import { AuthFrame } from "./AuthFrame";
 import { VerificationPanel } from "./VerificationPanel";
+import { AuthMessage, GoogleOption, PasswordToggle } from "./AuthParts";
 import { Button, TextField } from "@/ui";
 import { paths } from "@/app/paths";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -29,7 +29,7 @@ export default function SignInPage() {
   useEffect(() => checkProviders(), [checkProviders, auth.isConfigured]);
 
   if (auth.status === "loading") {
-    return <AuthFrame eyebrow="Account" title="Welcome back" description="A considered wardrobe begins with your own point of view."><div aria-label="Checking account" role="status" className="space-y-4"><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /></div></AuthFrame>;
+    return <AuthFrame title="Welcome back" description="Pick up where your wardrobe left off."><div aria-label="Checking account" role="status" className="space-y-4"><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /></div></AuthFrame>;
   }
   if (auth.status === "signed-in") return <Navigate to={next} replace />;
 
@@ -79,32 +79,28 @@ export default function SignInPage() {
   }
 
   return (
-    <AuthFrame eyebrow="Account" title="Welcome back" description="Pick up where your wardrobe left off.">
+    <AuthFrame title="Welcome back" description="Pick up where your wardrobe left off." sampleNote={!verification}>
       {verification ? (
         <VerificationPanel initialEmail={email} next={next} onVerified={() => navigate(next, { replace: true })} onClose={() => setVerification(false)} />
       ) : (
         <>
-          {auth.error && <p role="alert" className="mb-5 border border-line bg-chalk-deep p-3 text-caption text-graphite-deep">{auth.error} The demo is still open to explore.</p>}
-          {error && <p role="alert" className="mb-5 border border-danger p-3 text-caption text-danger">{error}</p>}
-          {notice && <p role="status" className="mb-5 border border-line bg-chalk-deep p-3 text-caption text-graphite-deep">{notice}</p>}
-          <form noValidate onSubmit={submit} className="space-y-5">
-            <TextField ref={emailRef} label="Email address" requiredMark type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => { setEmail(event.target.value); setErrors((old) => ({ ...old, email: undefined })); }} error={errors.email} />
+          {auth.error && <AuthMessage tone="note" className="mb-5">{auth.error} The demo is still open to explore.</AuthMessage>}
+          {error && <AuthMessage className="mb-5">{error}</AuthMessage>}
+          {notice && <AuthMessage tone="note" className="mb-5">{notice}</AuthMessage>}
+          <GoogleOption available={auth.googleAvailable} busy={submitting} onClick={google} offMessage="Google sign-in is not enabled here. Use email and password instead." />
+          <form noValidate onSubmit={submit} className="space-y-4 sm:space-y-5">
+            <TextField ref={emailRef} label="Email address" type="email" autoComplete="email" inputMode="email" placeholder="you@example.com" value={email} onChange={(event) => { setEmail(event.target.value); setErrors((old) => ({ ...old, email: undefined })); }} error={errors.email} />
             <div>
-              <TextField ref={passwordRef} label="Password" requiredMark type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => { setPassword(event.target.value); setErrors((old) => ({ ...old, password: undefined })); }} error={errors.password} />
-              <button type="button" className="mt-2 inline-flex min-h-11 items-center gap-2 text-caption text-graphite-deep underline underline-offset-4" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"}>
-                {showPassword ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
-                {showPassword ? "Hide password" : "Show password"}
-              </button>
+              <TextField ref={passwordRef} label="Password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => { setPassword(event.target.value); setErrors((old) => ({ ...old, password: undefined })); }} error={errors.password}
+                trailing={<PasswordToggle shown={showPassword} onToggle={() => setShowPassword((value) => !value)} />} />
+              <div className="flex justify-end">
+                <Link to={paths.resetPassword()} className="inline-flex min-h-11 items-center text-caption text-midnight underline underline-offset-4">Forgot password?</Link>
+              </div>
             </div>
             <Button type="submit" fullWidth disabled={!auth.isConfigured} loading={submitting} loadingLabel="Signing in">Sign in</Button>
           </form>
-          <Link to={paths.resetPassword()} className="mt-3 inline-flex min-h-11 items-center text-caption text-midnight underline underline-offset-4">Forgot password?</Link>
-          <div className="my-6 flex items-center gap-4 text-caption text-graphite-deep"><span className="h-px flex-1 bg-line" /><span>or</span><span className="h-px flex-1 bg-line" /></div>
-          <Button variant="secondary" fullWidth onClick={google} disabled={auth.googleAvailable !== true || submitting} leadingIcon={<span aria-hidden="true" className="font-medium">G</span>}>Continue with Google</Button>
-          {auth.googleAvailable !== true && <p className="mt-3 text-caption text-graphite-deep" role="status">{auth.googleAvailable === null ? "Checking Google availability…" : "Google sign-in is not enabled here. Use email and password instead."}</p>}
-          <Button variant="quiet" className="mt-4" onClick={() => setVerification(true)}>Verify a legacy account</Button>
-          <p className="mt-7 text-body text-graphite-deep">New to SILVET? <Link className="font-medium text-midnight underline underline-offset-4" to={paths.signUp(next)}>Create an account</Link></p>
-          <p className="mt-4 text-caption text-graphite-deep"><ArrowUpRight aria-hidden="true" className="mr-1 inline size-3.5" />No account needed to browse the <Link to={paths.wardrobe("/demo")} className="text-midnight underline underline-offset-4">sample wardrobe</Link>.</p>
+          <p className="mt-6 text-body text-graphite-deep">New here? <Link className="font-medium text-midnight underline underline-offset-4" to={paths.signUp(next)}>Create your wardrobe</Link></p>
+          <Button variant="quiet" className="mt-3 min-h-11" onClick={() => setVerification(true)}>Verify a legacy account</Button>
         </>
       )}
     </AuthFrame>

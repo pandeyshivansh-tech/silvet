@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ImagePlus } from "lucide-react";
 import { errorMessage, isRepositoryError, useIsDemo, useItemImages } from "@/data";
 import { prepareImage, validateImage } from "@/lib/images";
 import { CATEGORIES, COLORS, OCCASIONS, PATTERNS, SEASONS, STYLES, subcategoriesOf } from "@/domain/taxonomy";
 import { fieldErrors, ITEM_NAME_MAX, itemInputSchema, type ItemInput } from "@/domain/schemas";
-import { Button, Chip, SelectField, TextField } from "@/ui";
-import { GarmentFrame } from "@/ui";
+import { Button, Chip, GarmentFrame, SelectField, StickyActionBar, TextField } from "@/ui";
 import type { ClothingItem, PreparedImage } from "@/domain/types";
 import { useUnsavedChanges } from "@/lib/UnsavedChanges";
 
@@ -178,94 +177,12 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
     primaryColor: values.primaryColor || null,
   };
 
-  return (
-    <form ref={formRef} onSubmit={handleSubmit} noValidate className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.72fr)] lg:gap-16">
-      {guard.prompt}
-      <div className="space-y-8">
-        <TextField
-          label="Name"
-          requiredMark
-          name="name"
-          autoComplete="off"
-          maxLength={ITEM_NAME_MAX}
-          value={values.name}
-          onChange={(event) => setValue("name", event.target.value)}
-          placeholder="For example, indigo everyday kurta"
-          error={fieldErrorMap.name}
-        />
-        <div className="grid gap-5 sm:grid-cols-2">
-          <SelectField
-            label="Category"
-            requiredMark
-            name="categorySlug"
-            value={values.categorySlug}
-            onChange={(event) => {
-              setValue("categorySlug", event.target.value);
-              setValue("subcategorySlug", "");
-            }}
-            options={CATEGORIES.map(({ slug, label }) => ({ value: slug, label }))}
-            placeholder="Choose a category"
-            error={fieldErrorMap.categorySlug}
-          />
-          <SelectField
-            label="Type"
-            name="subcategorySlug"
-            value={values.subcategorySlug}
-            onChange={(event) => setValue("subcategorySlug", event.target.value)}
-            options={values.categorySlug ? subcategoriesOf(values.categorySlug).map(({ slug, label }) => ({ value: slug, label })) : []}
-            placeholder={values.categorySlug ? "Choose a type" : "Choose a category first"}
-            disabled={!values.categorySlug}
-            optional
-            error={fieldErrorMap.subcategorySlug}
-          />
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <SelectField
-            label="Main colour"
-            name="primaryColor"
-            value={values.primaryColor}
-            onChange={(event) => setValue("primaryColor", event.target.value)}
-            options={COLORS.map(({ slug, label }) => ({ value: slug, label }))}
-            placeholder="Choose a colour"
-            optional
-            error={fieldErrorMap.primaryColor}
-          />
-          <SelectField
-            label="Second colour"
-            name="secondaryColor"
-            value={values.secondaryColor}
-            onChange={(event) => setValue("secondaryColor", event.target.value)}
-            options={COLORS.map(({ slug, label }) => ({ value: slug, label }))}
-            placeholder="Choose a colour"
-            optional
-            error={fieldErrorMap.secondaryColor}
-          />
-        </div>
-        <SelectField
-          label="Pattern"
-          name="pattern"
-          value={values.pattern}
-          onChange={(event) => setValue("pattern", event.target.value)}
-          options={PATTERNS.map(({ slug, label }) => ({ value: slug, label }))}
-          placeholder="Choose a pattern"
-          optional
-          error={fieldErrorMap.pattern}
-        />
-        <div className="space-y-7 border-t border-line pt-6">
-          <TagChoices title="Style" field="styleTags" options={STYLES} selected={values.styleTags} error={fieldErrorMap.styleTags} onToggle={(slug) => toggle("styleTags", slug)} />
-          <TagChoices title="Occasion" field="occasionTags" options={OCCASIONS} selected={values.occasionTags} error={fieldErrorMap.occasionTags} onToggle={(slug) => toggle("occasionTags", slug)} />
-          <TagChoices title="Season" field="seasonTags" options={SEASONS} selected={values.seasonTags} error={fieldErrorMap.seasonTags} onToggle={(slug) => toggle("seasonTags", slug)} />
-        </div>
-        {formError && <p className="border-l-2 border-danger pl-3 text-body text-danger" role="alert">{formError}</p>}
-        <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center">
-          <Button type="submit" loading={loading || processing} loadingLabel="Saving…" className="sm:min-w-52">{submitLabel}</Button>
-          <p className="text-caption text-graphite-deep">Name and category are the only required details.</p>
-        </div>
-      </div>
+  // Photo first: it is what the piece is remembered by. Phones get a compact frame beside the controls.
+  const photoPanel = (
+    <aside aria-label="Photo" className="space-y-4 lg:sticky lg:top-10 lg:self-start">
 
-      <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-display text-look text-midnight">Photo preview</h2>
+          <h2 className="font-display text-look text-midnight">Photo</h2>
           {(photo || (!isDemo && initialItem?.image && !removeImage)) && <button type="button" disabled={loading} className="text-caption text-graphite-deep underline underline-offset-4" onClick={() => {
             if (!photo) setRemoveImage(true);
             setPhoto(null);
@@ -273,9 +190,11 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
             if (photoInputRef.current) photoInputRef.current.value = "";
           }}>{photo ? "Remove preview" : "Remove photo"}</button>}
         </div>
-        <div className="mx-auto w-full max-w-72 lg:mx-0">
+        <div className="flex items-start gap-4 sm:gap-6 lg:block">
+          <div className="w-32 shrink-0 sm:w-44 lg:w-full">
           <GarmentFrame key={previewUrl || existingUrl || "illustration"} item={previewItem} imageUrl={previewUrl || (!removeImage ? existingUrl : undefined)} placeholderTag={isDemo ? "Preview only" : "No photo"} />
-        </div>
+          </div>
+          <div className="min-w-0 flex-1 space-y-3 lg:mt-5">
         <label className="flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xs border border-line-strong px-4 text-ui font-medium text-midnight transition-colors hover:bg-chalk-deep focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-midnight">
           <ImagePlus aria-hidden="true" className="size-4" />
           {photo ? "Choose a different photo" : "Choose a photo"}
@@ -321,10 +240,119 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
         {!isDemo && removeImage && !photo && <button type="button" disabled={loading} className="text-caption underline" onClick={() => setRemoveImage(false)}>Keep existing photo</button>}
         {photoError && <p className="text-caption text-danger" role="alert">{photoError}</p>}
         <p className="text-caption text-graphite-deep">
-          {isDemo ? "Preview only — photos are not saved in this demo. Your clothing details can still be saved."
+          {isDemo ? "Preview only. Photos are not saved in this demo. Your clothing details can still be saved."
           : loading || processing ? "Optimising and saving details and photo… Please wait." : "JPEG, PNG or WebP, up to 10 MiB. SILVET re-encodes photos to WebP and strips metadata where browser processing is supported; if processing fails, the original is kept. Photos are private and saved with your piece."}
         </p>
-      </aside>
+          </div>
+        </div>
+    </aside>
+  );
+
+  return (
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="grid gap-10 lg:grid-cols-[minmax(16rem,0.78fr)_minmax(0,1.22fr)] lg:gap-16">
+      {guard.prompt}
+      {photoPanel}
+      <div className="min-w-0 space-y-10">
+        <FormSection title="The piece">
+        <TextField
+          label="Name"
+          requiredMark
+          name="name"
+          autoComplete="off"
+          maxLength={ITEM_NAME_MAX}
+          value={values.name}
+          onChange={(event) => setValue("name", event.target.value)}
+          placeholder="For example, indigo everyday kurta"
+          error={fieldErrorMap.name}
+        />
+        <div className="grid gap-5 sm:grid-cols-2">
+          <SelectField
+            label="Category"
+            requiredMark
+            name="categorySlug"
+            value={values.categorySlug}
+            onChange={(event) => {
+              setValue("categorySlug", event.target.value);
+              setValue("subcategorySlug", "");
+            }}
+            options={CATEGORIES.map(({ slug, label }) => ({ value: slug, label }))}
+            placeholder="Choose a category"
+            error={fieldErrorMap.categorySlug}
+          />
+          <SelectField
+            label="Type"
+            name="subcategorySlug"
+            value={values.subcategorySlug}
+            onChange={(event) => setValue("subcategorySlug", event.target.value)}
+            options={values.categorySlug ? subcategoriesOf(values.categorySlug).map(({ slug, label }) => ({ value: slug, label })) : []}
+            placeholder={values.categorySlug ? "Choose a type" : "Choose a category first"}
+            disabled={!values.categorySlug}
+            optional
+            error={fieldErrorMap.subcategorySlug}
+          />
+        </div>
+        </FormSection>
+        <FormSection title="Colour and pattern">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <SelectField
+            label="Main colour"
+            name="primaryColor"
+            value={values.primaryColor}
+            onChange={(event) => setValue("primaryColor", event.target.value)}
+            options={COLORS.map(({ slug, label }) => ({ value: slug, label }))}
+            placeholder="Choose a colour"
+            optional
+            error={fieldErrorMap.primaryColor}
+          />
+          <SelectField
+            label="Second colour"
+            name="secondaryColor"
+            value={values.secondaryColor}
+            onChange={(event) => setValue("secondaryColor", event.target.value)}
+            options={COLORS.map(({ slug, label }) => ({ value: slug, label }))}
+            placeholder="Choose a colour"
+            optional
+            error={fieldErrorMap.secondaryColor}
+          />
+        </div>
+        <SelectField
+          label="Pattern"
+          name="pattern"
+          value={values.pattern}
+          onChange={(event) => setValue("pattern", event.target.value)}
+          options={PATTERNS.map(({ slug, label }) => ({ value: slug, label }))}
+          placeholder="Choose a pattern"
+          optional
+          error={fieldErrorMap.pattern}
+        />
+        </FormSection>
+        <FormSection title="When you wear it" note="Optional. Ideas uses these to suggest looks.">
+        <div className="space-y-7">
+          <TagChoices title="Style" field="styleTags" options={STYLES} selected={values.styleTags} error={fieldErrorMap.styleTags} onToggle={(slug) => toggle("styleTags", slug)} />
+          <TagChoices title="Occasion" field="occasionTags" options={OCCASIONS} selected={values.occasionTags} error={fieldErrorMap.occasionTags} onToggle={(slug) => toggle("occasionTags", slug)} />
+          <TagChoices title="Season" field="seasonTags" options={SEASONS} selected={values.seasonTags} error={fieldErrorMap.seasonTags} onToggle={(slug) => toggle("seasonTags", slug)} />
+        </div>
+        </FormSection>
+        <div className="space-y-4 border-t border-line pt-6">
+          {formError && <p className="border-l-2 border-danger pl-3 text-body text-danger" role="alert">{formError}</p>}
+          <p className="text-caption text-graphite-deep">Name and category are the only required details.</p>
+          <StickyActionBar label="Save">
+            <Button type="submit" loading={loading || processing} loadingLabel="Saving…" className="flex-1 sm:flex-none sm:min-w-52">{submitLabel}</Button>
+          </StickyActionBar>
+        </div>
+      </div>
     </form>
+  );
+}
+
+function FormSection({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+  return (
+    <section className="space-y-5">
+      <div>
+        <h2 className="font-display text-look text-midnight">{title}</h2>
+        {note && <p className="mt-1 text-caption text-graphite-deep">{note}</p>}
+      </div>
+      {children}
+    </section>
   );
 }

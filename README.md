@@ -61,4 +61,4 @@ See [Product URL import](docs/PRODUCT_URL_IMPORT.md) for security limits,
 retailer limitations, verification commands and manual acceptance steps.
 
 ## Docs
-`CLAUDE.md` (engineering rules) · `DESIGN.md` (design direction) · `docs/design/SILVET_DESIGN_SYSTEM.md` (tokens, components, states) · `docs/design/SILVET_DESIGN_REFERENCE.pdf` (approved visual reference) · `replit.md` (rules for Replit Agent).
+`DESIGN.md` (design direction) · `docs/design/SILVET_DESIGN_SYSTEM.md` (tokens, components, states) · `docs/design/SILVET_DESIGN_REFERENCE.pdf` (approved visual reference) · `replit.md` (rules for Replit Agent).

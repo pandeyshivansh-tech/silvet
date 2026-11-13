@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   CATEGORIES,
   COLORS,
+  STYLES,
   SUBCATEGORIES,
   canBeWornAlone,
   getCategory,
   isIndianWear,
   slotOf,
+  stylesByGroup,
   subcategoriesOf,
 } from "./taxonomy";
 import { itemInputSchema, outfitInputSchema } from "./schemas";
@@ -198,5 +200,13 @@ describe("checkOutfit", () => {
     const r = checkOutfit([p("footwear", "sneakers")], lookup);
     expect(r.complete).toBe(false);
     expect(r.issues[0]?.code).toBe("missing_base");
+  });
+});
+
+describe("style groups", () => {
+  it("place every style preference in exactly one group, Indian wear first", () => {
+    const groups = stylesByGroup();
+    expect(groups.flatMap((group) => group.styles.map((style) => style.slug)).sort()).toEqual(STYLES.map((style) => style.slug).sort());
+    expect(groups[0]?.styles.map((style) => style.slug)).toEqual(["traditional", "fusion"]);
   });
 });

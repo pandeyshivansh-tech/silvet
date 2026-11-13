@@ -239,6 +239,18 @@ export const STYLES = [
 ] as const;
 export type StyleSlug = (typeof STYLES)[number]["slug"];
 
+/**
+ * Display grouping for style preferences (onboarding, profile) — presentation only; STYLES' order is the
+ * database's. Indian wear first: India-first product. domain.test.ts checks every style is in exactly one group.
+ */
+export const STYLE_GROUPS = [
+  { slug: "indian", label: "Indian and fusion", hint: "Traditional covers sarees, kurtas, lehengas and juttis. Fusion mixes Indian and Western pieces in one look.", styles: ["traditional", "fusion"] },
+  { slug: "western", label: "Western and everyday", hint: "From clean basics and sportswear to streetwear and throwback eras.", styles: ["minimal", "casual", "classic", "streetwear", "sporty", "vintage", "y2k"] },
+] as const satisfies readonly { slug: string; label: string; hint: string; styles: readonly StyleSlug[] }[];
+
+export const stylesByGroup = () =>
+  STYLE_GROUPS.map((group) => ({ ...group, styles: group.styles.map((slug) => STYLES.find((style) => style.slug === slug)!) }));
+
 /* ------------------------------------------------------------------ */
 /* Lookups and helpers — use these instead of searching the arrays.    */
 /* ------------------------------------------------------------------ */

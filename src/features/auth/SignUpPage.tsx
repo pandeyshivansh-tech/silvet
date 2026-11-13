@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { AuthFrame } from "./AuthFrame";
+import { AuthMessage, GoogleOption, PasswordToggle } from "./AuthParts";
 import { Button, TextField } from "@/ui";
 import { paths } from "@/app/paths";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -15,6 +16,7 @@ export default function SignUpPage() {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ displayName?: string; email?: string; password?: string }>({});
   const [error, setError] = useState("");
   const [sessionUnavailable, setSessionUnavailable] = useState(false);
@@ -27,7 +29,7 @@ export default function SignUpPage() {
   useEffect(() => checkProviders(), [checkProviders, auth.isConfigured]);
 
   if (auth.status === "loading") {
-    return <AuthFrame eyebrow="Create account" title="A wardrobe, on your terms" description="Indian and Western fashion, side by side."><div aria-label="Checking account" role="status" className="space-y-4"><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /></div></AuthFrame>;
+    return <AuthFrame title="Create your wardrobe" description="Your clothes and looks are private to your account."><div aria-label="Checking account" role="status" className="space-y-4"><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /><div className="skeleton h-12 rounded-xs" /></div></AuthFrame>;
   }
   if (auth.status === "signed-in") return <Navigate to={next} replace />;
 
@@ -63,35 +65,36 @@ export default function SignUpPage() {
       .finally(() => { lock.current = false; setSubmitting(false); });
   }
 
+  function google() {
+    if (lock.current || auth.googleAvailable !== true) return;
+    lock.current = true;
+    setSubmitting(true);
+    setError("");
+    void auth.signInWithGoogle(next).catch((reason: unknown) => setError(authError(reason).message)).finally(() => { lock.current = false; setSubmitting(false); });
+  }
+
   return (
-    <AuthFrame eyebrow="Create account" title="A wardrobe, on your terms" description="Indian and Western fashion, side by side. Your style, your own space.">
+    <AuthFrame title="Create your wardrobe" description={sessionUnavailable ? undefined : "Your clothes and looks are private to your account."} sampleNote={!sessionUnavailable}>
       {sessionUnavailable ? (
-        <section>
+        <section className="border-l-2 border-midnight pl-5">
           <h2 className="font-display text-look text-midnight">No sign-in session was returned</h2>
           <p role="status" className="mt-3 text-body text-graphite-deep">SILVET has not signed you in, so your personal app is still locked. If Supabase sent an email, follow its instructions. For immediate signup, the project’s email-confirmation setting must be turned off.</p>
-          <p className="mt-5 text-body text-graphite-deep">You can also <Link className="text-midnight underline underline-offset-4" to={paths.signIn(next)}>try signing in</Link>.</p>
+          <p className="mt-5 text-body text-graphite-deep">You can also <Link className="font-medium text-midnight underline underline-offset-4" to={paths.signIn(next)}>try signing in</Link>.</p>
         </section>
       ) : (
         <>
-          {auth.error && <p role="alert" className="mb-5 border border-line bg-chalk-deep p-3 text-caption text-graphite-deep">{auth.error} The demo is still open to explore.</p>}
-          {error && <p role="alert" className="mb-5 border border-danger p-3 text-caption text-danger">{error}</p>}
-          <form noValidate onSubmit={submit} className="space-y-5">
-            <TextField ref={nameRef} label="Your name" requiredMark autoComplete="name" maxLength={80} value={displayName}
+          {auth.error && <AuthMessage tone="note" className="mb-5">{auth.error} The demo is still open to explore.</AuthMessage>}
+          {error && <AuthMessage className="mb-5">{error}</AuthMessage>}
+          <GoogleOption available={auth.googleAvailable} busy={submitting} onClick={google} offMessage="Google sign-in is not enabled here. Create an account with email instead." />
+          <form noValidate onSubmit={submit} className="space-y-4 sm:space-y-5">
+            <TextField ref={nameRef} label="Your name" autoComplete="name" maxLength={80} value={displayName}
               onChange={(event) => { setDisplayName(event.target.value); setErrors((old) => ({ ...old, displayName: undefined })); }} error={errors.displayName} />
-            <TextField ref={emailRef} label="Email address" requiredMark type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => { setEmail(event.target.value); setErrors((old) => ({ ...old, email: undefined })); }} error={errors.email} />
-            <TextField ref={passwordRef} label="Create a password" requiredMark type="password" autoComplete="new-password" value={password} onChange={(event) => { setPassword(event.target.value); setErrors((old) => ({ ...old, password: undefined })); }} error={errors.password} hint="At least 8 characters." />
+            <TextField ref={emailRef} label="Email address" type="email" autoComplete="email" inputMode="email" placeholder="you@example.com" value={email} onChange={(event) => { setEmail(event.target.value); setErrors((old) => ({ ...old, email: undefined })); }} error={errors.email} />
+            <TextField ref={passwordRef} label="Create a password" type={showPassword ? "text" : "password"} autoComplete="new-password" value={password} onChange={(event) => { setPassword(event.target.value); setErrors((old) => ({ ...old, password: undefined })); }} error={errors.password} hint="At least 8 characters."
+              trailing={<PasswordToggle shown={showPassword} onToggle={() => setShowPassword((value) => !value)} />} />
             <Button type="submit" fullWidth disabled={!auth.isConfigured} loading={submitting} loadingLabel="Creating account">Create account</Button>
           </form>
-          <div className="my-6 flex items-center gap-4 text-caption text-graphite-deep"><span className="h-px flex-1 bg-line" /><span>or</span><span className="h-px flex-1 bg-line" /></div>
-          <Button variant="secondary" fullWidth disabled={auth.googleAvailable !== true || submitting} onClick={() => {
-            if (lock.current || auth.googleAvailable !== true) return;
-            lock.current = true;
-            setSubmitting(true);
-            setError("");
-            void auth.signInWithGoogle(next).catch((reason: unknown) => setError(authError(reason).message)).finally(() => { lock.current = false; setSubmitting(false); });
-          }} leadingIcon={<span aria-hidden="true" className="font-medium">G</span>}>Continue with Google</Button>
-          {auth.googleAvailable !== true && <p className="mt-3 text-caption text-graphite-deep" role="status">{auth.googleAvailable === null ? "Checking Google availability…" : "Google sign-in is not enabled here. Create an account with email instead."}</p>}
-          <p className="mt-7 text-body text-graphite-deep">Already have an account? <Link className="font-medium text-midnight underline underline-offset-4" to={paths.signIn(next)}>Sign in</Link></p>
+          <p className="mt-6 text-body text-graphite-deep">Already have an account? <Link className="font-medium text-midnight underline underline-offset-4" to={paths.signIn(next)}>Sign in</Link></p>
         </>
       )}
     </AuthFrame>

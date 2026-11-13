@@ -3,6 +3,7 @@ import { Navigate } from "react-router";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { authError, consumeNext, readNext } from "@/lib/auth/authFlow";
 import { AuthFrame } from "./AuthFrame";
+import { AuthMessage } from "./AuthParts";
 import { ButtonLink, Spinner } from "@/ui";
 import { paths } from "@/app/paths";
 export default function AuthCallbackPage() {
@@ -25,7 +26,7 @@ export default function AuthCallbackPage() {
   }, [auth, input]);
   if (done && auth.status === "signed-in") return <Navigate to={input.next} replace />;
   const problem = error ?? auth.error;
-  return <AuthFrame eyebrow="Account" title="Finishing your sign-in" description="Please keep this tab open while we check your confirmation.">
-    {problem ? <div className="space-y-5"><p role="alert">{problem}</p><p className="text-body-sm text-graphite-deep">Email links need the browser where you started. Older confirmation links can still be handled from the sign-in screen.</p><ButtonLink to={paths.signIn()}>Back to sign in</ButtonLink></div> : <Spinner label="Checking your sign-in" />}
+  return <AuthFrame title="Finishing your sign-in" description="Please keep this tab open while we check your confirmation.">
+    {problem ? <div className="space-y-5"><AuthMessage>{problem}</AuthMessage><p className="text-caption text-graphite-deep">Email links need the browser where you started. Older confirmation links can still be handled from the sign-in screen.</p><ButtonLink to={paths.signIn()} fullWidth>Back to sign in</ButtonLink></div> : <Spinner label="Checking your sign-in" />}
   </AuthFrame>;
 }

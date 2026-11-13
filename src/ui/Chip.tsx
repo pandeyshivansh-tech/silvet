@@ -31,6 +31,7 @@ export function Chip({ selected = false, variant = "filter", removable = false, 
         "relative inline-flex h-8 shrink-0 select-none items-center gap-1.5 rounded-xs px-3 text-ui",
         "before:absolute before:-inset-y-1.5 before:inset-x-0 before:content-['']",
         "transition-[background-color,border-color,color] duration-120 ease-editorial",
+        "motion-safe:transition-[background-color,border-color,color,transform] motion-safe:duration-[120ms,120ms,120ms,320ms] motion-safe:ease-spring active:scale-[0.95]",
         variant === "filter" && "border",
         selected
           ? "border-lilac bg-lilac font-medium text-midnight"
@@ -51,10 +52,10 @@ export function Chip({ selected = false, variant = "filter", removable = false, 
   );
 }
 
-/** Horizontal scroll row for chips and category tabs. Edge fade is fine here — never over garments. */
+/** Horizontal scroll row for chips and category tabs. No edge fade: the next chip peeking past the gutter shows it scrolls. */
 export function ChipRow({ children, className, label }: { children: ReactNode; className?: string; label: string }) {
   return (
-    <div role="group" aria-label={label} className={cn("fade-x scrollbar-none -mx-5 flex snap-x gap-2 overflow-x-auto px-5 py-1.5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0", className)}>
+    <div role="group" aria-label={label} className={cn("scrollbar-none -mx-5 flex snap-x gap-2 overflow-x-auto px-5 py-1.5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0", className)}>
       {children}
     </div>
   );

@@ -1,31 +1,35 @@
-import { ArrowLeft, ArrowUpRight, RefreshCw } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowUpRight, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { errorMessage, useBasePath, useDeleteOutfit, useIsDemo, useItemImages, useItems, useOutfit } from "@/data";
 import type { Outfit } from "@/domain/types";
-import { SLOT_LABELS } from "@/domain/taxonomy";
+import { SLOT_LABELS, labelOf } from "@/domain/taxonomy";
 import { paths } from "@/app/paths";
-import { Button, ButtonLink, ConfirmDialog, ErrorState, ItemCard, Page, PageHeader, RemovedItemCard, Skeleton, useToast } from "@/ui";
-import { outfitCounts, outfitTitle, resolveOutfitPieces } from "./lookbookPresentation";
+import { ActionMenu, BackLink, Button, ButtonLink, ConfirmDialog, ErrorState, ItemCard, Page, PageHeader, RemovedItemCard, Skeleton, StickyActionBar, useIsPhone, useToast } from "@/ui";
+import { LookFlatLay } from "./LookFlatLay";
+import { outfitCounts, outfitTitle, resolveOutfitPieces, sharedOccasions, sourceLabel } from "./lookbookPresentation";
 
 function DetailSkeleton() {
   return (
-    <div role="status" aria-label="Loading saved look">
-      <div className="mb-8 flex items-center justify-between border-b border-line pb-5">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-10 w-32" />
+    <div role="status" aria-label="Loading saved look" className="grid items-start gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:gap-10 lg:gap-16">
+      <Skeleton className="aspect-[4/5] w-full" />
+      <div className="space-y-3">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-12 w-3/4" />
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="mt-8 h-24 w-full" />
       </div>
-      <Skeleton className="h-12 w-3/4 sm:h-16 sm:w-1/2" />
-      <Skeleton className="mt-4 h-4 w-32" />
-      <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-5">
-        {[0, 1, 2, 3].map((key) => (
-          <div key={key}>
-            <Skeleton className="aspect-[4/5] w-full" />
-            <Skeleton className="mt-3 h-4 w-3/4" />
-            <Skeleton className="mt-2 h-3 w-1/2" />
-          </div>
-        ))}
-      </div>
+    </div>
+  );
+}
+
+const savedDate = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-4 py-3.5">
+      <dt className="text-caption text-graphite-deep">{label}</dt>
+      <dd className="text-ui text-midnight">{children}</dd>
     </div>
   );
 }
@@ -44,7 +48,7 @@ export default function OutfitDetailPage() {
   const toast = useToast();
   const base = useBasePath();
   const isDemo = useIsDemo();
-  const outfitQuery = useOutfit(outfitId);
+  const outfitQuery = useOutfit(outfitId, true);
   const itemsQuery = useItems();
   const deleteOutfit = useDeleteOutfit();
   const images = useItemImages(itemsQuery.data);
@@ -53,6 +57,7 @@ export default function OutfitDetailPage() {
   const [deleteError, setDeleteError] = useState<unknown>(null);
   const [lastKnownOutfit, setLastKnownOutfit] = useState<Outfit | null>(null);
   const deletingRef = useRef(false);
+  const phone = useIsPhone();
 
   useEffect(() => {
     if (outfitQuery.data) setLastKnownOutfit(outfitQuery.data);
@@ -144,82 +149,80 @@ export default function OutfitDetailPage() {
   const items = itemsQuery.data ?? [];
   const rows = resolveOutfitPieces(outfit, items);
   const counts = outfitCounts(rows);
+  const title = outfitTitle(outfit);
+  const occasions = sharedOccasions(rows);
+  const updated = Date.parse(outfit.updatedAt);
+  const askDelete = () => {
+    setDeleteError(null);
+    setConfirmOpen(true);
+  };
+  const editLink = (
+    <ButtonLink
+      to={paths.style(base, { outfitId: outfit.id })}
+      variant="secondary"
+      className="min-h-11"
+      aria-disabled={deletePending || undefined}
+      onClick={(event) => { if (deletePending) event.preventDefault(); }}
+      leadingIcon={<ArrowUpRight aria-hidden="true" className="size-4" />}
+    >
+      Edit in Studio
+    </ButtonLink>
+  );
   return (
     <Page wide>
-      <header className="mb-8 flex flex-col gap-5 border-b border-line pb-6 sm:flex-row sm:items-center sm:justify-between">
-        <Link
-          to={paths.lookbook(base)}
-          className="inline-flex min-h-11 w-fit items-center gap-2 text-ui font-medium text-midnight underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-midnight"
-        >
-          <ArrowLeft aria-hidden="true" className="size-4" /> Lookbook
-        </Link>
-        <div className="flex flex-wrap items-center gap-4">
-          <ButtonLink
-            to={paths.style(base, { outfitId: outfit.id })}
-            variant="secondary"
-            size="sm"
-            className="min-h-11"
-            aria-disabled={deletePending || undefined}
-            onClick={(event) => { if (deletePending) event.preventDefault(); }}
-            leadingIcon={<ArrowUpRight aria-hidden="true" className="size-4" />}
-          >
-            Edit in Studio
-          </ButtonLink>
-          <Button
-            variant="danger-quiet"
-            size="sm"
-            className="min-h-11"
-            disabled={deletePending}
-            onClick={() => {
-              setDeleteError(null);
-              setConfirmOpen(true);
-            }}
-          >
-            Delete look
-          </Button>
-        </div>
-      </header>
+      <BackLink to={paths.lookbook(base)}>Lookbook</BackLink>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-end">
-        <div>
-          <p className="eyebrow mb-3">Saved look</p>
-          <h1 className="max-w-4xl font-display text-page text-midnight lg:text-page-lg">
-            {outfitTitle(outfit)}
-          </h1>
+      {/* The look card, opened: the flat-lay leads (sticky on desktop), name, notes and details beside it. */}
+      <article className="grid items-start gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:gap-10 lg:gap-16">
+        <div className="lg:sticky lg:top-10">
+          <LookFlatLay rows={rows} images={images.byItem} size="detail" viewTransitionName="look" />
         </div>
-        <p className="text-body text-graphite-deep">
-          {counts.total} {counts.total === 1 ? "piece" : "pieces"}
-          {counts.removed > 0 ? ` · ${counts.removed} no longer in your wardrobe` : ""}
-        </p>
-      </div>
+        <div className="min-w-0">
+          <p className="eyebrow mb-3">Saved look · {sourceLabel(outfit.source)}</p>
+          <h1 className="font-display text-page text-midnight lg:text-page-lg">{title}</h1>
+          <p className="mt-2 text-body text-graphite-deep">
+            {counts.total} {counts.total === 1 ? "piece" : "pieces"}
+            {counts.removed > 0 ? ` · ${counts.removed} no longer in your wardrobe` : ""}
+          </p>
+          <div className="mt-6 hidden flex-wrap gap-3 md:flex">
+            {editLink}
+            <Button variant="danger-quiet" className="min-h-11" disabled={deletePending} onClick={askDelete}>Delete look</Button>
+          </div>
 
-      {outfit.notes && (
-        <p className="mt-6 max-w-2xl whitespace-pre-wrap text-lead text-graphite-deep">{outfit.notes}</p>
-      )}
+          {outfit.notes && (
+            <p className="mt-8 max-w-prose border-l-2 border-line-strong pl-4 font-display text-lead-lg whitespace-pre-wrap text-midnight">{outfit.notes}</p>
+          )}
 
-      {deleteError !== null && (
-        <div role="alert" className="mt-8 flex flex-col gap-3 border-l-2 border-danger bg-chalk-deep px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-body text-graphite-deep">{errorMessage(deleteError)} The look is still here.</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="min-h-11 w-fit"
-            loading={deletePending}
-            loadingLabel="Trying again…"
-            onClick={() => void removeOutfit()}
-            leadingIcon={<RefreshCw aria-hidden="true" className="size-4" />}
-          >
-            Retry delete
-          </Button>
+          {deleteError !== null && (
+            <div role="alert" className="mt-8 flex flex-col gap-3 border-l-2 border-danger bg-chalk-deep px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-body text-graphite-deep">{errorMessage(deleteError)} The look is still here.</p>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="min-h-11 w-fit"
+                loading={deletePending}
+                loadingLabel="Trying again…"
+                onClick={() => void removeOutfit()}
+                leadingIcon={<RefreshCw aria-hidden="true" className="size-4" />}
+              >
+                Retry delete
+              </Button>
+            </div>
+          )}
+
+          <dl className="mt-8 divide-y divide-line border-y border-line">
+            <DetailRow label="Made">{outfit.source === "suggestion" ? "Suggested in Ideas" : "Built in Studio"}</DetailRow>
+            {occasions.length > 0 && <DetailRow label="Occasion">{occasions.map(labelOf.occasion).join(" · ")}</DetailRow>}
+            {Number.isFinite(updated) && (
+              <DetailRow label={outfit.updatedAt === outfit.createdAt ? "Saved" : "Updated"}>{savedDate.format(updated)}</DetailRow>
+            )}
+          </dl>
         </div>
-      )}
+      </article>
 
-      <section className="mt-9 sm:mt-12" aria-label="Pieces in this look">
-        <div className="mb-5 flex items-center gap-4">
-          <h2 className="font-display text-look text-midnight lg:text-look-lg">The pieces</h2>
-          <span className="h-px flex-1 bg-line" />
-        </div>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-5 lg:gap-y-10">
+      <section className="mt-12 border-t border-line pt-8 lg:mt-16" aria-label="Pieces in this look">
+        <h2 className="mb-5 font-display text-look text-midnight lg:text-look-lg">The pieces</h2>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:grid-cols-3 lg:grid-cols-4 lg:gap-x-5 lg:gap-y-10 xl:grid-cols-6">
           {rows.map(({ piece, item, key }) => (
             <article key={key} className="min-w-0">
               <p className="mb-2 text-caption text-graphite-deep">{SLOT_LABELS[piece.slot]}</p>
@@ -232,12 +235,26 @@ export default function OutfitDetailPage() {
           ))}
         </div>
       </section>
+
+      {/* Phones and small tablets: actions stay in reach while the whole look scrolls by. */}
+      <StickyActionBar className="mt-10 md:hidden" label="Look actions">
+        {editLink}
+        {phone ? (
+          <ActionMenu
+            label={`More actions for ${title}`}
+            title={title}
+            items={[{ label: "Delete look…", icon: <Trash2 aria-hidden="true" className="size-4" strokeWidth={1.5} />, destructive: true, disabled: deletePending, onSelect: askDelete }]}
+          />
+        ) : (
+          <Button variant="danger-quiet" className="min-h-11" disabled={deletePending} onClick={askDelete}>Delete look</Button>
+        )}
+      </StickyActionBar>
       {isDemo && <SessionNote />}
 
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`Delete “${outfitTitle(outfit)}”?`}
+        title={`Delete “${title}”?`}
         body="This removes the saved combination from your Lookbook. The clothing in your wardrobe stays untouched."
         confirmLabel="Delete look"
         cancelLabel="Keep this look"

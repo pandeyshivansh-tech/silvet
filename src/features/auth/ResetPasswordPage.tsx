@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
 import { AuthFrame } from "./AuthFrame";
+import { AuthMessage } from "./AuthParts";
 import { Button, ButtonLink, TextField } from "@/ui";
 import { paths } from "@/app/paths";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -22,14 +23,16 @@ export default function ResetPasswordPage() {
     catch (reason) { setError(authError(reason).message); }
     finally { lock.current = false; setWorking(false); }
   }
-  return <AuthFrame eyebrow="Account recovery" title="Reset your password" description="We’ll send a secure link to your email. Open it in this browser.">
-    {sent ? <p role="status">If an account exists for that address, a password reset email is on its way. Check your spam folder too.</p>
+  return <AuthFrame title="Reset your password" description="We’ll send a secure link to your email. Open it in this browser.">
+    {error && <AuthMessage className="mb-5">{error}</AuthMessage>}
+    {sent ? <div className="border-l-2 border-midnight pl-5"><p role="status" className="text-body text-midnight">If an account exists for that address, a password reset email is on its way. Check your spam folder too.</p></div>
       : <form onSubmit={(event) => void submit(event)} noValidate className="space-y-5">
-        <TextField label="Email" type="email" autoComplete="email" requiredMark value={email} disabled={working} onChange={(event) => setEmail(event.target.value)} />
-        <Button type="submit" loading={working} loadingLabel="Sending reset email" disabled={!auth.isConfigured || auth.status === "loading"}>Send reset link</Button>
+        <TextField label="Email" type="email" autoComplete="email" inputMode="email" placeholder="you@example.com" value={email} disabled={working} onChange={(event) => setEmail(event.target.value)} />
+        <Button type="submit" fullWidth loading={working} loadingLabel="Sending reset email" disabled={!auth.isConfigured || auth.status === "loading"}>Send reset link</Button>
       </form>}
-    {error && <p role="alert" className="mt-4 text-danger">{error}</p>}
-    {sent && <Button variant="quiet" className="mt-4" onClick={() => setSent(false)}>Try again</Button>}
-    <ButtonLink className="mt-5" variant="quiet" to={paths.signIn()}>Back to sign in</ButtonLink>
+    <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1">
+      {sent && <Button variant="quiet" className="min-h-11" onClick={() => setSent(false)}>Try again</Button>}
+      <ButtonLink className="min-h-11" variant="quiet" to={paths.signIn()}>Back to sign in</ButtonLink>
+    </div>
   </AuthFrame>;
 }

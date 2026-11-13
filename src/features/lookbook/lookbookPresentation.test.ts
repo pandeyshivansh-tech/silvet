@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_ITEMS, DEMO_OUTFITS } from "@/data/demo/demoWardrobe";
-import type { Outfit, OutfitPiece } from "@/domain/types";
-import { orderOutfits, outfitCounts, outfitTitle, resolveOutfitPieces } from "./lookbookPresentation";
+import type { ClothingItem, Outfit, OutfitPiece } from "@/domain/types";
+import { flatLay, orderOutfits, outfitCounts, outfitTitle, resolveOutfitPieces, sharedOccasions, sourceLabel } from "./lookbookPresentation";
 
 const outfit = DEMO_OUTFITS[0]!;
 const item = DEMO_ITEMS[0]!;
@@ -80,5 +80,35 @@ describe("Lookbook presentation", () => {
   it("preserves input order for identical timestamps", () => {
     const second = { ...outfit, id: "second" };
     expect(orderOutfits([outfit, second]).outfits.map((row) => row.id)).toEqual([outfit.id, second.id]);
+  });
+
+  it("names the source the way the Lookbook shows it", () => {
+    expect(sourceLabel("suggestion")).toBe("from Ideas");
+    expect(sourceLabel("manual")).toBe("built in Studio");
+  });
+
+  it("only reports occasions shared by at least two tagged pieces", () => {
+    const row = (slot: OutfitPiece["slot"], occasionTags: ClothingItem["occasionTags"] | null) => ({
+      piece: { slot, itemId: occasionTags ? `${slot}-id` : null, position: 0 },
+      item: occasionTags ? { ...item, id: `${slot}-id`, occasionTags } : null,
+      key: slot,
+    });
+    expect(sharedOccasions([row("top", ["work", "everyday"]), row("bottom", ["everyday", "work", "party"]), row("footwear", [])])).toEqual(["everyday", "work"]);
+    expect(sharedOccasions([row("top", ["work"]), row("bottom", null)])).toEqual([]);
+    expect(sharedOccasions([row("top", ["work"]), row("bottom", ["party"])])).toEqual([]);
+  });
+
+  it("lays a look out top to toe without dropping or reordering within a slot", () => {
+    const pieces: OutfitPiece[] = [
+      { slot: "accessory", itemId: "a1", position: 0 },
+      { slot: "footwear", itemId: "f", position: 1 },
+      { slot: "outerwear", itemId: "o", position: 2 },
+      { slot: "bottom", itemId: null, position: 3 },
+      { slot: "top", itemId: "t", position: 4 },
+      { slot: "accessory", itemId: "a2", position: 5 },
+    ];
+    const { main, finishing } = flatLay(resolveOutfitPieces({ pieces }, []));
+    expect(main.map((row) => row.piece.slot)).toEqual(["top", "bottom", "outerwear"]);
+    expect(finishing.map((row) => row.piece.itemId)).toEqual(["f", "a1", "a2"]);
   });
 });

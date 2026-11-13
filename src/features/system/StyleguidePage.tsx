@@ -6,6 +6,7 @@ import { CATEGORIES, COLORS, OCCASIONS, SLOTS, SUBCATEGORIES, labelOf, subcatego
 import type { ClothingItem } from "@/domain/types";
 import { fadeUp, ideaLook, ideaPiece, slotLand, stagger } from "@/motion/presets";
 import {
+  ActionMenu,
   Button,
   Chip,
   ChipRow,
@@ -13,6 +14,7 @@ import {
   ConfirmDialog,
   EmptyState,
   ErrorState,
+  FilterSheet,
   GarmentFrame,
   GarmentGlyph,
   IconButton,
@@ -20,14 +22,18 @@ import {
   ItemCardSkeleton,
   ItemGridSkeleton,
   Lockup,
+  OutfitSlot,
   Page,
   PageHeader,
+  ReasonPanel,
   RemovedItemCard,
   SectionRule,
   SelectField,
   Sheet,
   SilvetMark,
   StateView,
+  StickyActionBar,
+  SuccessState,
   TextField,
   WARDROBE_GRID,
   Wordmark,
@@ -56,6 +62,7 @@ export default function StyleguidePage() {
           <StatesSection />
           <MidnightSection />
           <OverlaySection />
+          <PrimitivesSection />
           <MotionSection />
         </div>
       </Page>
@@ -75,16 +82,21 @@ function Section({ label, children, note }: { label: string; children: ReactNode
 
 function BrandSection() {
   return (
-    <Section label="Brand · interim" note="The Selvedge S is still an exploration in the PDF (A · Selvedge is the base option). Until the final asset exists, the mark is a typeset Instrument Serif S — no invented logo.">
+    <Section label="Brand" note="A · Selvedge, approved. Symbol only below 640 px, full lockup from 1024 px, and in between whenever it fits. The selvedge edge turns Citron only on Midnight.">
       <div className="flex flex-wrap items-center gap-8">
-        <Lockup markClassName="text-page" wordmarkClassName="text-look" />
-        <div className="surface-midnight flex items-center gap-3 rounded-xs px-6 py-4">
-          <SilvetMark className="text-look" />
-          <Wordmark className="text-lead text-chalk" />
+        <Lockup mode="full" size="lg" className="w-auto" />
+        <div className="surface-midnight rounded-xs px-6 py-4">
+          <Lockup mode="full" />
+        </div>
+        <div className="flex items-end gap-5">
+          {["text-[1rem]", "text-[1.25rem]", "text-[1.5rem]", "text-[2rem]", "text-[3rem]"].map((size) => (
+            <SilvetMark key={size} className={size} />
+          ))}
         </div>
         <div className="surface-midnight flex size-16 items-center justify-center rounded-xs">
-          <SilvetMark className="text-section" />
+          <SilvetMark className="text-[2.5rem]" />
         </div>
+        <Wordmark className="h-6" />
       </div>
     </Section>
   );
@@ -131,7 +143,7 @@ function ColourSection() {
 }
 
 const TYPE = [
-  { cls: "font-display text-hero lg:text-hero-lg", spec: "Hero 96/88 · 56/52", sample: "Decided." },
+  { cls: "font-display text-hero lg:text-hero-lg", spec: "Hero 96/88 · 56/52", sample: "Both, Sunday." },
   { cls: "font-display text-page lg:text-page-lg", spec: "Page 56/56 · 40/40", sample: "Lookbook" },
   { cls: "font-display text-section lg:text-section-lg", spec: "Section 48 · 32", sample: "Why this works" },
   { cls: "font-display text-look lg:text-look-lg", spec: "Look name 28 · 24", sample: "Diwali evening" },
@@ -359,7 +371,7 @@ function LiveDataSection() {
 
 function StatesSection() {
   return (
-    <Section label="Page states" note="Loading · empty · error. Success is the screen itself. Skeletons use Chalk Deep with a slow tonal sweep — no colour.">
+    <Section label="Page states" note="Loading · empty · error. Success is the screen itself. Skeletons are flat Chalk Deep with a slow opacity pulse — no gradient, no colour.">
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-xs border border-line p-4">
           <ItemGridSkeleton count={3} className="grid-cols-3! sm:grid-cols-3! md:grid-cols-3! lg:grid-cols-3!" />
@@ -422,7 +434,7 @@ function OverlaySection() {
   const [picked, setPicked] = useState<string | null>(null);
   const toast = useToast();
   return (
-    <Section label="Sheets, dialogs, toasts" note="Toasts: bottom-centre, 4 s, pause on hover/focus, one at a time; errors stay until dismissed. Sheets: bottom sheet under 640 px, 360 px side panel above; focus returns to what opened them.">
+    <Section label="Sheets, dialogs, toasts" note="Toasts: bottom-centre, 4 s, pause on hover/focus, one at a time; errors stay until dismissed. Sheets: bottom sheet under 640 px (pickers open at half height; drag the handle or title, or press the handle, to expand; drag down to dismiss), 360 px side panel above; focus returns to what opened them.">
       <div className="flex flex-wrap gap-3">
         <Button variant="secondary" onClick={() => setSheet(true)}>
           Open picker sheet
@@ -437,7 +449,7 @@ function OverlaySection() {
           Error toast
         </Button>
       </div>
-      <Sheet open={sheet} onOpenChange={setSheet} title="Bottom" description="Choosing for · 9 that fit" footer={<Button fullWidth onClick={() => setSheet(false)}>Done</Button>}>
+      <Sheet open={sheet} onOpenChange={setSheet} phoneHeight="half" title="Bottom" description="Choosing for · 9 that fit" footer={<Button fullWidth onClick={() => setSheet(false)}>Done</Button>}>
         <div className="grid grid-cols-2 gap-3 pt-2">
           {SUBCATEGORIES.filter((s) => s.slot === "bottom")
             .slice(0, 6)
@@ -506,6 +518,54 @@ function MotionSection() {
           <p className="mt-2 text-caption text-graphite-deep">Old idea fades out (120 ms); the new one fades in piece by piece (40 ms stagger). Buttons stay put.</p>
         </div>
       </div>
+    </Section>
+  );
+}
+
+function PrimitivesSection() {
+  const [confirm, setConfirm] = useState(false);
+  const [indian, setIndian] = useState(false);
+  const [slotItem, setSlotItem] = useState<ClothingItem | undefined>(SAMPLE);
+  const other: ClothingItem = { ...SAMPLE, id: "styleguide-indigo-kurta", name: "Indigo kurta", subcategorySlug: "kurtas", primaryColor: "navy" };
+  return (
+    <Section label="Interaction primitives" note="ActionMenu: ⋯ opens a bottom sheet on phones and a menu from 640 px (↑ ↓ Home End, Esc returns focus). FilterSheet: phones only; every change writes through the screen’s own filter state. StickyActionBar: sticks above the tab bar below 1024 px, inline above. OutfitSlot: one slot for Build and Ideas. ReasonPanel: the screen’s one Midnight panel.">
+      <div className="flex flex-wrap items-center gap-3">
+        <ActionMenu
+          label="More actions for Monochrome Monday"
+          title="Monochrome Monday"
+          items={[
+            { label: "Edit in Studio", onSelect: () => {} },
+            { label: "Duplicate", onSelect: () => {}, disabled: true },
+            { label: "Delete look", destructive: true, onSelect: () => setConfirm(true) },
+          ]}
+        />
+        <FilterSheet activeCount={indian ? 1 : 0} resultCount={indian ? 9 : 44} noun={["piece", "pieces"]} onReset={() => setIndian(false)}>
+          <Chip selected={indian} onClick={() => setIndian(!indian)}>Indian wear</Chip>
+        </FilterSheet>
+      </div>
+      <div className="mt-8 grid max-w-3xl grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4">
+        <OutfitSlot label="Top" item={slotItem} detail="Blouses" onChoose={() => setSlotItem((current) => current?.id === SAMPLE.id ? other : SAMPLE)} onRemove={() => setSlotItem(undefined)} />
+        <OutfitSlot label="Bottom" onChoose={() => setSlotItem(SAMPLE)} />
+        <OutfitSlot label="Layer" optional compact removed onChoose={() => {}} onRemove={() => {}} />
+        <OutfitSlot label="Top" item={other} detail="Kurtas" action={<Button variant="quiet" className="mt-2 min-h-11" aria-label="Swap Indigo kurta">Swap</Button>} />
+      </div>
+      <ReasonPanel
+        className="mt-8 max-w-3xl"
+        reasons={[
+          { key: "occasion", message: "Indigo kurta and straight jeans are both tagged for everyday." },
+          { key: "fusion", message: "An Indian top with Western denim: fusion, on purpose." },
+          { key: "colour", message: "Navy and indigo sit close; the tan Kolhapuris warm them up." },
+        ]}
+      />
+      <StickyActionBar className="mt-8" label="Example actions">
+        <Button className="flex-1 sm:flex-none">Save look</Button>
+        <Button variant="secondary" className="flex-1 sm:flex-none">Another idea</Button>
+      </StickyActionBar>
+      <div className="mt-8 grid gap-8 lg:grid-cols-2">
+        <SuccessState title="Check your email." body="We sent a sign-in link. It works for 1 hour." action={<Button variant="secondary">Back to sign in</Button>} />
+        <ErrorState error={new Error("We couldn’t reach your wardrobe. Nothing is lost.")} onRetry={() => {}} action={<Button variant="quiet">Go to the demo</Button>} />
+      </div>
+      <ConfirmDialog open={confirm} onOpenChange={setConfirm} title="Delete Monochrome Monday?" body="The look is removed from Lookbook. Its pieces stay in your wardrobe." confirmLabel="Delete look" destructive onConfirm={() => setConfirm(false)} />
     </Section>
   );
 }

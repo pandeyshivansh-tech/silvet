@@ -91,7 +91,7 @@ export function checkOutfit(pieces: readonly OutfitPiece[], lookup: ItemLookup):
   if (has("one_piece") && (has("top") || has("bottom"))) {
     issues.push({
       code: "one_piece_with_separates",
-      message: "A one-piece or set is a complete look — remove the top/bottom or the set.",
+      message: "A one-piece or set is already a complete look. Remove the top and bottom, or the set.",
       slot: "one_piece",
     });
   }

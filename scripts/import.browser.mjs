@@ -94,7 +94,9 @@ try {
   }
   await fill("Name", "My edited imported kurta");
   data.state.failWrites = true; await click("Save piece");
-  await check("Failed wardrobe save retains the import draft", `${contains("could not be loaded or saved")} && Boolean(document.querySelector('img[src^="blob:"]'))`);
+  // A real network abort during this write (SupabaseRepository.ts classifies it as "network") is as valid a failure
+  // as the fixture's injected DB error ("unknown"): both keep the draft, so the check accepts either message.
+  await check("Failed wardrobe save retains the import draft", `(${contains("could not be loaded or saved")} || ${contains("couldn’t reach your wardrobe")}) && Boolean(document.querySelector('img[src^="blob:"]'))`);
   assert.equal(objects.size, 0);
   data.state.failWrites = false; await click("Save piece");
   await check("Explicit confirmation saves through the existing repository", "location.pathname.match(/^\\/app\\/wardrobe\\/[\\w-]+$/) && document.body.innerText.includes('My edited imported kurta')");
@@ -129,7 +131,7 @@ try {
   await navigate("/app/wardrobe");
   await check("Account switching does not expose imported garments", `!${contains("My edited imported kurta")}`);
   await navigate("/demo/wardrobe/new");
-  await check("Demo remains manual and independent from product imports", `!${contains("Import from URL")} && ${contains("photos are not saved in this demo")}`);
+  await check("Demo remains manual and independent from product imports", `!${contains("Import from URL")} && ${contains("Photos are not saved in this demo")}`);
   assert.equal(h.errors.length, 0, JSON.stringify(h.errors));
   console.log(`PASS: ${h.checks.length} product-import browser checks (synthetic fixtures, not hosted).`);
 } finally { await h.close(); }

@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
+import { ArrowRight, ArrowUpRight, Check, CircleAlert } from "lucide-react";
 import { Link, useNavigate } from "react-router";
-import { Button, ButtonLink, Chip, ChipRow, ErrorState, Skeleton, TextField } from "@/ui";
+import { Button, Chip, ChipRow, ErrorState, Page, PageHeader, Skeleton, TextField } from "@/ui";
 import { paths } from "@/app/paths";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useProfile, useUpdateProfile } from "@/data/profiles/hooks";
-import { STYLES, type StyleSlug } from "@/domain/taxonomy";
+import { STYLES, stylesByGroup, type StyleSlug } from "@/domain/taxonomy";
 import { authError } from "@/lib/auth/authFlow";
 import type { UserProfile } from "@/domain/types";
 import { profileInputSchema } from "@/domain/profileSchema";
@@ -19,7 +20,7 @@ function ProfileForm({ saved }: { saved: UserProfile }) {
   const lock = useRef(false);
   const dirty = name !== (saved.displayName ?? "") || JSON.stringify(styles) !== JSON.stringify(saved.stylePreferences);
   const guard = useUnsavedChanges(dirty);
-  return <form noValidate className="mt-7 space-y-5" onSubmit={(event) => {
+  return <form noValidate className="space-y-8" onSubmit={(event) => {
     event.preventDefault();
     if (lock.current) return;
     const parsed = profileInputSchema.safeParse({ displayName: name, stylePreferences: styles });
@@ -34,19 +35,69 @@ function ProfileForm({ saved }: { saved: UserProfile }) {
     <TextField label="Display name" optional autoComplete="name" maxLength={80} value={name} disabled={update.isPending}
       onChange={(event) => { setName(event.target.value); setSuccess(false); }} />
     <fieldset disabled={update.isPending}>
-      <legend className="text-ui font-medium text-midnight">Edit style preferences</legend>
-      <ChipRow label="Edit style preferences" className="mt-3 flex-wrap overflow-visible">
-        {STYLES.map((style) => <Chip key={style.slug} selected={styles.includes(style.slug)} disabled={update.isPending} onClick={() => {
-          setStyles((current) => current.includes(style.slug) ? current.filter((value) => value !== style.slug) : [...current, style.slug]);
-          setSuccess(false);
-        }}>{style.label}</Chip>)}
-      </ChipRow>
+      <legend className="flex w-full items-baseline justify-between gap-3 text-ui font-medium text-midnight">
+        <span>Edit style preferences</span>
+        <span className="text-caption font-normal text-graphite-deep">{styles.length ? `${styles.length} chosen` : "optional · choose any"}</span>
+      </legend>
+      <div className="mt-5 space-y-6">
+        {stylesByGroup().map((group) => (
+          <div key={group.slug}>
+            <h3 className="font-display text-lead-lg text-midnight">{group.label}</h3>
+            <p className="mt-0.5 max-w-lg text-caption text-graphite-deep">{group.hint}</p>
+            <ChipRow label={group.label} className="mt-3 flex-wrap overflow-visible">
+              {group.styles.map((style) => <Chip key={style.slug} selected={styles.includes(style.slug)} disabled={update.isPending} onClick={() => {
+                setStyles((current) => current.includes(style.slug) ? current.filter((value) => value !== style.slug) : [...current, style.slug]);
+                setSuccess(false);
+              }}>{style.label}</Chip>)}
+            </ChipRow>
+          </div>
+        ))}
+      </div>
     </fieldset>
-    {error && <p role="alert" className="text-danger">{error}</p>}
-    {success && <p role="status">Your profile is saved.</p>}
-    <Button type="submit" disabled={!dirty} loading={update.isPending} loadingLabel="Saving profile">Save profile</Button>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-5">
+      <Button type="submit" disabled={!dirty} loading={update.isPending} loadingLabel="Saving profile">Save profile</Button>
+      {error && <p role="alert" className="flex items-start gap-2 text-caption text-midnight"><CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2} />{error}</p>}
+      {success && <p role="status" className="flex items-center gap-1.5 text-caption text-midnight"><Check aria-hidden="true" className="size-4" strokeWidth={2} />Your profile is saved.</p>}
+      {!error && !success && <p className="text-caption text-graphite-deep">{dirty ? "You have unsaved changes." : "No changes yet."}</p>}
+    </div>
   </form>;
 }
+
+/** The account at a glance — the page's one Midnight panel: who is signed in, the style they chose, and the way out. */
+function Identity({ profile, email, signOut, signingOut }: { profile: UserProfile; email: string | null; signOut: () => void; signingOut: boolean }) {
+  const name = profile.displayName?.trim();
+  const chosen = profile.stylePreferences.flatMap((slug) => STYLES.filter((style) => style.slug === slug));
+  return (
+    <section aria-label="Your account" className="surface-midnight rounded-xs p-5 sm:p-8">
+      <div className="flex items-start gap-4 sm:gap-5">
+        <span aria-hidden="true" className="inline-flex size-14 shrink-0 items-center justify-center rounded-full border border-midnight-muted font-display text-section text-chalk">
+          {(name || email || "S").charAt(0).toUpperCase()}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-look text-chalk wrap-anywhere sm:text-section">{name || "No display name yet"}</h2>
+          <p className="mt-1 text-body text-midnight-muted wrap-anywhere">{email ?? "Email not available"}</p>
+        </div>
+      </div>
+      <div className="mt-6 flex flex-col gap-5 border-t border-midnight-muted/30 pt-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-caption text-midnight-muted">Your style</h3>
+          {chosen.length ? (
+            <ul aria-label="Saved style preferences" className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+              {chosen.map((style) => <li key={style.slug} className="flex items-center gap-2 text-ui text-chalk"><span aria-hidden="true" className="size-1.5 rounded-full bg-citron" />{style.label}</li>)}
+            </ul>
+          ) : <p className="mt-2 text-ui text-chalk">No styles chosen yet. Pick some below.</p>}
+        </div>
+        <Button variant="secondary" onClick={signOut} loading={signingOut} loadingLabel="Signing out" arrow={false} className="shrink-0 self-start sm:self-auto">Sign out</Button>
+      </div>
+    </section>
+  );
+}
+
+const spaces = [
+  { to: paths.wardrobe("/app"), label: "Personal wardrobe", note: "Your own pieces" },
+  { to: paths.style("/app"), label: "Open Studio", note: "Build a look, or get an idea" },
+  { to: paths.lookbook("/app"), label: "Open Lookbook", note: "Looks you’ve saved" },
+] as const;
 
 export default function ProfilePage() {
   const profile = useProfile();
@@ -67,50 +118,53 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-dvh bg-chalk px-5 py-8 sm:px-8 sm:py-12 lg:px-10">
-      <div className="mx-auto max-w-4xl">
-        <p className="eyebrow mb-3">Account</p>
-        <h1 className="font-display text-page text-midnight lg:text-page-lg">Your profile</h1>
-        <p className="mt-3 max-w-xl text-body text-graphite-deep">A small summary of the details you chose to share with SILVET.</p>
-        {error && <p role="alert" className="mt-6 border border-danger p-3 text-caption text-danger">{error}</p>}
-        {profile.isPending ? (
-          <section aria-label="Loading your profile" role="status" className="mt-10 max-w-xl space-y-5">
-            <Skeleton className="h-24 w-full" /><Skeleton className="h-16 w-2/3" /><Skeleton className="h-12 w-36" />
-          </section>
-        ) : profile.isError || !profile.data ? (
-          <div className="mt-8 max-w-xl">
-            <ErrorState error={profile.error} title="Your account summary did not load." onRetry={() => void profile.refetch()} />
-            <Button variant="secondary" onClick={signOut} loading={signingOut} loadingLabel="Signing out">Sign out</Button>
-          </div>
-        ) : (
-          <>
-            <section className="mt-10 max-w-2xl border-y border-line py-7">
-              <dl className="grid gap-7 sm:grid-cols-2">
-                <div><dt className="text-caption text-graphite-deep">Email</dt><dd className="mt-1 break-all text-ui font-medium text-midnight">{auth.user?.email ?? "Email not available"}</dd></div>
-                <div className="min-w-0"><dt className="text-caption text-graphite-deep">Display name</dt><dd className="mt-1 break-words text-ui font-medium text-midnight">{profile.data.displayName || "Not set"}</dd></div>
-              </dl>
-              <div className="mt-7">
-                <h2 className="text-ui font-medium text-midnight">Style preferences</h2>
-                {profile.data.stylePreferences.length ? (
-                  <ChipRow label="Saved style preferences" className="mt-2 flex-wrap overflow-visible">
-                    {profile.data.stylePreferences.map((slug) => <Chip key={slug} selected disabled>{STYLES.find((style) => style.slug === slug)?.label ?? slug}</Chip>)}
-                  </ChipRow>
-                ) : <p className="mt-2 text-caption text-graphite-deep">No preferences added yet.</p>}
-              </div>
+    <Page>
+      <PageHeader eyebrow="Account" title="Your profile" lede="How SILVET knows you. Your name and styles shape the looks Ideas suggests; only you can see them." />
+      {error && <p role="alert" className="mb-6 flex items-start gap-2 rounded-xs border border-danger p-3 text-caption text-midnight"><CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2} />{error}</p>}
+      {profile.isPending ? (
+        <section aria-label="Loading your profile" role="status" className="space-y-5">
+          <Skeleton className="h-40 w-full" /><Skeleton className="h-16 w-2/3" /><Skeleton className="h-12 w-36" />
+        </section>
+      ) : profile.isError || !profile.data ? (
+        <div className="max-w-xl">
+          <ErrorState error={profile.error} title="Your account summary did not load." onRetry={() => void profile.refetch()} />
+          <Button variant="secondary" onClick={signOut} loading={signingOut} loadingLabel="Signing out">Sign out</Button>
+        </div>
+      ) : (
+        <>
+          <Identity profile={profile.data} email={auth.user?.email ?? null} signOut={signOut} signingOut={signingOut} />
+          <div className="mt-10 grid gap-10 lg:mt-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:gap-12">
+            <section aria-labelledby="edit-profile">
+              <h2 id="edit-profile" className="font-display text-look text-midnight lg:text-look-lg">Edit your profile</h2>
+              <p className="mt-1 mb-6 text-caption text-graphite-deep">Change these whenever your style does.</p>
+              <ProfileForm key={profile.data.id} saved={profile.data} />
             </section>
-            <div className="max-w-2xl"><ProfileForm key={profile.data.id} saved={profile.data} /></div>
-            <div className="mt-7 flex flex-col items-start gap-5">
-              <div className="flex flex-wrap gap-3">
-                <ButtonLink to={paths.wardrobe("/app")}>Personal wardrobe</ButtonLink>
-                <ButtonLink to={paths.style("/app")} variant="secondary">Open Studio</ButtonLink>
-                <ButtonLink to={paths.lookbook("/app")} variant="secondary">Open Lookbook</ButtonLink>
-              </div>
-              <Button variant="secondary" onClick={signOut} loading={signingOut} loadingLabel="Signing out">Sign out</Button>
-              <p className="max-w-lg text-caption text-graphite-deep">Want to look around first? <Link className="text-midnight underline underline-offset-4" to={paths.wardrobe("/demo")}>Visit the demo wardrobe</Link>. It contains sample pieces, not your personal clothes.</p>
-            </div>
-          </>
-        )}
-      </div>
-    </main>
+            <aside className="space-y-8 lg:border-l lg:border-line lg:pl-10">
+              <nav aria-label="Your spaces">
+                <h2 className="text-ui font-medium text-midnight">Your spaces</h2>
+                <ul className="mt-2 border-t border-line">
+                  {spaces.map((space) => (
+                    <li key={space.label} className="border-b border-line">
+                      <Link to={space.to} className="group flex min-h-14 items-center justify-between gap-3 py-2">
+                        <span className="min-w-0">
+                          <span className="block text-ui font-medium text-midnight group-hover:underline group-hover:underline-offset-4">{space.label}</span>
+                          <span className="block text-caption text-graphite-deep">{space.note}</span>
+                        </span>
+                        <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-midnight transition-transform duration-120 ease-editorial group-hover:translate-x-0.5" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              <section aria-labelledby="sample-wardrobe" className="rounded-xs border border-dashed border-line-strong p-4">
+                <h2 id="sample-wardrobe" className="text-ui font-medium text-midnight">The sample wardrobe</h2>
+                <p className="mt-1 text-caption text-graphite-deep">Sample pieces for trying Studio and Ideas. They aren’t yours, and looks saved there disappear when you close the tab.</p>
+                <Link className="mt-2 inline-flex min-h-11 items-center gap-1 text-caption font-medium text-midnight underline underline-offset-4" to={paths.wardrobe("/demo")}>Visit the sample wardrobe <ArrowUpRight aria-hidden="true" className="size-3.5" /></Link>
+              </section>
+            </aside>
+          </div>
+        </>
+      )}
+    </Page>
   );
 }

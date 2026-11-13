@@ -121,7 +121,7 @@ try {
   const wardrobeBefore = await evaluate(repository("return await repo.listItems();"));
   const initialCount = await evaluate(repository("return (await repo.listOutfits()).length;"));
   await evaluate("(()=>{const s=document.querySelectorAll('select')[1];s.value='fusion';s.dispatchEvent(new Event('change',{bubbles:true}));})()");
-  await check("Optional fusion preference generates a complete idea", `${body("Why this works")} && Boolean(${fp})`);
+  await check("Optional fusion preference generates a complete idea", `${body("Why this works")} && Boolean(${fp}) && document.querySelector('section[aria-label="Recommended outfit"]')?.getAttribute("aria-busy")==="false"`);
   const firstFingerprint = await evaluate(fp);
   const structural = await evaluate(repository(`
     const {checkOutfit}=await import('/src/domain/outfitRules.ts');

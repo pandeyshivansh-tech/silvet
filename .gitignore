@@ -21,9 +21,10 @@ npm-debug.log*
 .idea/
 .vscode/
 
-# Private AI and working instructions
-CLAUDE.md
-claude.md
+# Private working instructions
 DESIGN.md
 design.md
 replit.md
+
+# Internal working reports
+docs/design/M8_BATCH9_REPORT.md

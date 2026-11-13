@@ -1,17 +1,23 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useBasePath, useDeleteItem, useItem, useItemImages, useItemUsage } from "@/data";
 import { errorMessage } from "@/data/repository";
 import { paths } from "@/app/paths";
 import { getCategory, itemTypeLabel, labelOf } from "@/domain/taxonomy";
-import { Button, ButtonLink, ColorSwatch, ConfirmDialog, EmptyState, GarmentFrame, Page, PageHeader, Skeleton, StateView, useToast } from "@/ui";
+import { Trash2 } from "lucide-react";
+import { ActionMenu, BackLink, Button, ButtonLink, ColorSwatch, ConfirmDialog, EmptyState, GarmentFrame, Page, Skeleton, StateView, StickyActionBar, useIsPhone, useToast } from "@/ui";
 
+/**
+ * One garment (M8 Batch 4): the photograph leads (left from 768 px, sticky on desktop), the name is the
+ * serif page heading, then colour, the details as a quiet definition list, and where it is used.
+ * Edit / Delete sit under the name from 768 px; below that they move to the sticky action bar.
+ */
 export default function ItemDetailPage() {
   const { itemId } = useParams();
   const base = useBasePath();
   const navigate = useNavigate();
   const toast = useToast();
-  const itemQuery = useItem(itemId);
+  const itemQuery = useItem(itemId, true);
   const item = itemQuery.data;
   const imageItems = useMemo(() => item ? [item] : undefined, [item]);
   const imageQuery = useItemImages(imageItems);
@@ -19,6 +25,7 @@ export default function ItemDetailPage() {
   const deleteItem = useDeleteItem();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const deleting = useRef(false);
+  const phone = useIsPhone();
 
   const remove = async () => {
     if (!itemId || deleting.current) return;
@@ -37,62 +44,54 @@ export default function ItemDetailPage() {
 
   return (
     <Page>
-      <PageHeader
-        eyebrow="My wardrobe"
-        title={item?.name ?? "Piece details"}
-        actions={
-          item ? (
-            <div className="hidden items-center gap-2 md:flex">
-              <ButtonLink to={paths.editItem(item.id, base)} variant="secondary">Edit piece</ButtonLink>
-              <Button variant="danger-quiet" onClick={() => setConfirmOpen(true)}>Delete</Button>
-            </div>
-          ) : <ButtonLink to={paths.wardrobe(base)} variant="secondary">Back to wardrobe</ButtonLink>
-        }
-      />
+      <BackLink to={paths.wardrobe(base)}>My wardrobe</BackLink>
+      {!item && <h1 className="sr-only">Piece details</h1>}
       <StateView
         query={itemQuery}
-        loading={<div className="grid gap-8 md:grid-cols-2"><Skeleton className="aspect-[4/5] w-full" /><div className="space-y-5"><Skeleton className="h-8 w-2/3" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-24 w-full" /></div></div>}
+        loading={
+          <div className="grid gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:gap-10 lg:gap-16">
+            <Skeleton className="aspect-[4/5] w-full" />
+            <div className="space-y-4"><Skeleton className="h-3 w-1/4" /><Skeleton className="h-12 w-3/4" /><Skeleton className="h-4 w-1/3" /><Skeleton className="mt-8 h-40 w-full" /></div>
+          </div>
+        }
         empty={<EmptyState title="This piece isn't in the wardrobe." body="It may have been removed, or the link may be out of date." action={<ButtonLink to={paths.wardrobe(base)}>Return to my wardrobe</ButtonLink>} />}
         isEmpty={(data) => data === null}
       >
         {(data) => data ? (
-          <div className="grid items-start gap-8 md:grid-cols-[minmax(16rem,0.9fr)_minmax(0,1.1fr)] md:gap-12 lg:gap-16">
-            <div className="mx-auto w-full max-w-md md:mx-0">
-              <GarmentFrame item={data} imageUrl={imageQuery.byItem.get(data.id)?.full} />
+          <article className="grid items-start gap-8 md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:gap-10 lg:gap-16">
+            <div className="lg:sticky lg:top-10">
+              <GarmentFrame item={data} imageUrl={imageQuery.byItem.get(data.id)?.full} viewTransitionName="garment" />
             </div>
-            <div className="min-w-0">
-              <p className="mb-3 text-caption text-graphite-deep">{getCategory(data.categorySlug)?.label ?? "Wardrobe piece"}</p>
-              <h2 className="font-display text-section text-midnight lg:text-section-lg">{data.name}</h2>
+            <div className="min-w-0 md:pt-1">
+              <p className="eyebrow mb-3">{getCategory(data.categorySlug)?.label ?? "Wardrobe piece"}</p>
+              <h1 className="font-display text-page text-midnight lg:text-page-lg">{data.name}</h1>
               <p className="mt-2 text-body text-graphite-deep">{itemTypeLabel(data)}</p>
 
+              <div className="mt-6 hidden items-center gap-2 md:flex">
+                <ButtonLink to={paths.editItem(data.id, base)} variant="secondary">Edit piece</ButtonLink>
+                <Button variant="danger-quiet" onClick={() => setConfirmOpen(true)}>Delete</Button>
+              </div>
+
               <dl className="mt-8 divide-y divide-line border-y border-line">
-                <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 py-4">
-                  <dt className="text-caption text-graphite-deep">Category</dt>
-                  <dd className="text-ui text-midnight">{getCategory(data.categorySlug)?.label ?? data.categorySlug}</dd>
-                </div>
-                {data.subcategorySlug && <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 py-4">
-                  <dt className="text-caption text-graphite-deep">Type</dt>
-                  <dd className="text-ui text-midnight">{labelOf.subcategory(data.subcategorySlug)}</dd>
-                </div>}
-                {(data.primaryColor || data.secondaryColor) && <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 py-4">
-                  <dt className="text-caption text-graphite-deep">Colour</dt>
-                  <dd className="flex flex-wrap gap-x-5 gap-y-2">
-                    {[...new Set([data.primaryColor, data.secondaryColor].filter((color): color is string => Boolean(color)))].map((color) => (
-                      <ColorSwatch key={color} slug={color} label />
-                    ))}
-                  </dd>
-                </div>}
-                {data.pattern && <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 py-4">
-                  <dt className="text-caption text-graphite-deep">Pattern</dt>
-                  <dd className="text-ui text-midnight">{labelOf.pattern(data.pattern)}</dd>
-                </div>}
-                {data.styleTags.length > 0 && <MetadataRow label="Style" values={data.styleTags.map(labelOf.style)} />}
-                {data.occasionTags.length > 0 && <MetadataRow label="Occasion" values={data.occasionTags.map(labelOf.occasion)} />}
-                {data.seasonTags.length > 0 && <MetadataRow label="Season" values={data.seasonTags.map(labelOf.season)} />}
+                <DetailRow label="Category">{getCategory(data.categorySlug)?.label ?? data.categorySlug}</DetailRow>
+                {data.subcategorySlug && <DetailRow label="Type">{labelOf.subcategory(data.subcategorySlug)}</DetailRow>}
+                {(data.primaryColor || data.secondaryColor) && (
+                  <DetailRow label="Colour">
+                    <span className="flex flex-wrap gap-x-5 gap-y-2">
+                      {[...new Set([data.primaryColor, data.secondaryColor].filter((color): color is string => Boolean(color)))].map((color) => (
+                        <ColorSwatch key={color} slug={color} label />
+                      ))}
+                    </span>
+                  </DetailRow>
+                )}
+                {data.pattern && <DetailRow label="Pattern">{labelOf.pattern(data.pattern)}</DetailRow>}
+                {data.styleTags.length > 0 && <DetailRow label="Style"><List values={data.styleTags.map(labelOf.style)} /></DetailRow>}
+                {data.occasionTags.length > 0 && <DetailRow label="Occasion"><List values={data.occasionTags.map(labelOf.occasion)} /></DetailRow>}
+                {data.seasonTags.length > 0 && <DetailRow label="Season"><List values={data.seasonTags.map(labelOf.season)} /></DetailRow>}
               </dl>
 
-              <section className="mt-8">
-                <h3 className="text-ui font-medium text-midnight">Saved looks</h3>
+              <section className="mt-8" aria-labelledby="saved-looks-heading">
+                <h2 id="saved-looks-heading" className="font-display text-look text-midnight">Saved looks</h2>
                 {usageQuery.isPending ? (
                   <p className="mt-2 text-caption text-graphite-deep">Checking saved looks…</p>
                 ) : usageQuery.isError ? (
@@ -108,12 +107,21 @@ export default function ItemDetailPage() {
                   </p>
                 )}
               </section>
-              <div className="mt-8 flex flex-wrap items-center gap-4 border-t border-line pt-5 md:hidden">
-                <ButtonLink to={paths.editItem(data.id, base)} variant="secondary">Edit piece</ButtonLink>
-                <Button variant="danger-quiet" onClick={() => setConfirmOpen(true)}>Delete piece</Button>
-              </div>
+              {/* Below 768 px: Edit stays in reach above the tab bar; on phones Delete moves into the ⋯ menu. */}
+              <StickyActionBar className="mt-8 md:hidden" label="Piece actions">
+                <ButtonLink to={paths.editItem(data.id, base)} className="flex-1 sm:flex-none">Edit piece</ButtonLink>
+                {phone ? (
+                  <ActionMenu
+                    label={`More actions for ${data.name}`}
+                    title={data.name}
+                    items={[{ label: "Delete piece", destructive: true, icon: <Trash2 aria-hidden="true" className="size-4" strokeWidth={1.5} />, onSelect: () => setConfirmOpen(true) }]}
+                  />
+                ) : (
+                  <Button variant="danger-quiet" className="min-h-11" onClick={() => setConfirmOpen(true)}>Delete piece</Button>
+                )}
+              </StickyActionBar>
             </div>
-          </div>
+          </article>
         ) : null}
       </StateView>
       <ConfirmDialog
@@ -132,13 +140,19 @@ export default function ItemDetailPage() {
   );
 }
 
-function MetadataRow({ label, values }: { label: string; values: string[] }) {
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-4 py-4">
+    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-4 py-3.5">
       <dt className="text-caption text-graphite-deep">{label}</dt>
-      <dd className="flex flex-wrap gap-x-2 gap-y-1 text-ui text-midnight">
-        {values.map((value, index) => <span key={`${value}-${index}`}>{index > 0 && <span className="mr-2 text-graphite">·</span>}{value}</span>)}
-      </dd>
+      <dd className="text-ui text-midnight">{children}</dd>
     </div>
+  );
+}
+
+function List({ values }: { values: string[] }) {
+  return (
+    <span className="flex flex-wrap gap-x-2 gap-y-1">
+      {values.map((value, index) => <span key={`${value}-${index}`}>{index > 0 && <span aria-hidden="true" className="mr-2 text-graphite">·</span>}{value}</span>)}
+    </span>
   );
 }

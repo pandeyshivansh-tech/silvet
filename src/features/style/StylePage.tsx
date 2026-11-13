@@ -74,9 +74,9 @@ export default function StylePage() {
 
   return (
     <Page wide>
-      <div className="mb-6 flex gap-2" role="group" aria-label="Studio mode">
-        <Chip selected={mode === "build"} onClick={() => chooseMode("build")}>Build</Chip>
-        <Chip selected={mode === "ideas"} onClick={() => chooseMode("ideas")}>Ideas</Chip>
+      <div className="mb-6 flex gap-1 border-b border-line pb-2 lg:mb-8" role="group" aria-label="Studio mode">
+        <Chip variant="tab" selected={mode === "build"} onClick={() => chooseMode("build")}>Build</Chip>
+        <Chip variant="tab" selected={mode === "ideas"} onClick={() => chooseMode("ideas")}>Ideas</Chip>
       </div>
       <div hidden={mode !== "build"}>
         <OutfitEditor

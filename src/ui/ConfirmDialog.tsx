@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { ReactNode } from "react";
 import { dialog, overlay } from "@/motion/presets";
 import { Button } from "./Button";
+import { useReturnFocus } from "./useReturnFocus";
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -14,13 +15,17 @@ export interface ConfirmDialogProps {
   destructive?: boolean;
   loading?: boolean;
   onConfirm: () => void;
+  /** Where focus goes on close if the opener is gone (e.g. the card it was opened from was deleted). */
+  fallbackFocus?: () => HTMLElement | null;
 }
 
 /**
  * Centered confirmation for destructive actions (delete item, delete look). Focus starts on the
- * safe choice ("Keep it" — first in DOM order). The filled Danger button only ever appears here.
+ * safe choice ("Keep it" — first in DOM order); on close focus returns to whatever opened it.
+ * The filled Danger button only ever appears here.
  */
-export function ConfirmDialog({ open, onOpenChange, title, body, confirmLabel, cancelLabel = "Keep it", destructive = false, loading = false, onConfirm }: ConfirmDialogProps) {
+export function ConfirmDialog({ open, onOpenChange, title, body, confirmLabel, cancelLabel = "Keep it", destructive = false, loading = false, onConfirm, fallbackFocus }: ConfirmDialogProps) {
+  const returnFocus = useReturnFocus(undefined, fallbackFocus);
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !loading && onOpenChange(next)}>
       <AnimatePresence>
@@ -30,7 +35,7 @@ export function ConfirmDialog({ open, onOpenChange, title, body, confirmLabel, c
               <motion.div className="fixed inset-0 z-40 bg-scrim" variants={overlay} initial="hidden" animate="visible" exit="exit" />
             </Dialog.Overlay>
             <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
-              <Dialog.Content asChild forceMount>
+              <Dialog.Content asChild forceMount {...returnFocus}>
                 <motion.div
                   role="alertdialog"
                   variants={dialog}
