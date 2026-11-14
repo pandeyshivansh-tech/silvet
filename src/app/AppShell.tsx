@@ -50,7 +50,7 @@ function DemoBanner() {
           <span className="sm:hidden"> · session only</span>
           <span className="hidden sm:inline">. Pieces and looks stay in this tab only. Photos are not stored.</span>
         </p>
-        <Link to={paths.signUp()} className="shrink-0 text-caption font-medium underline decoration-chalk/40 underline-offset-4 hover:decoration-chalk">
+        <Link to={paths.signUp()} className="-my-2.5 inline-flex min-h-11 shrink-0 items-center text-caption font-medium underline decoration-chalk/40 underline-offset-4 hover:decoration-chalk">
           <span className="sm:hidden">Start yours</span>
           <span className="hidden sm:inline">Create your wardrobe</span>
         </Link>

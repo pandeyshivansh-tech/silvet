@@ -215,9 +215,9 @@ export default function WardrobePage() {
         {(data) => visibleItems.length === 0 ? (
           <div className="border-t border-line pt-2">
             <EmptyState
-              title="Nothing matches just yet."
-              body="Try another search or clear your filters to see the whole collection."
-              action={<Button variant="secondary" onClick={reset}>Clear filters</Button>}
+              title={filters.query.trim() ? `No pieces match “${filters.query.trim()}”.` : "No pieces match these filters."}
+              body={`Try another search or reset your filters to see all ${data.length} ${data.length === 1 ? "piece" : "pieces"}.`}
+              action={<Button variant="secondary" onClick={reset}>Reset filters</Button>}
             />
           </div>
         ) : (

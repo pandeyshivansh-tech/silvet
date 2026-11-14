@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ImagePlus } from "lucide-react";
+import { ChevronDown, ImagePlus } from "lucide-react";
 import { errorMessage, isRepositoryError, useIsDemo, useItemImages } from "@/data";
 import { prepareImage, validateImage } from "@/lib/images";
 import { CATEGORIES, COLORS, OCCASIONS, PATTERNS, SEASONS, STYLES, subcategoriesOf } from "@/domain/taxonomy";
@@ -248,6 +248,9 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
     </aside>
   );
 
+  const tagCount = values.styleTags.length + values.occasionTags.length + values.seasonTags.length;
+  const [wearOpenChoice, setWearOpen] = useState(tagCount > 0);
+  const wearOpen = wearOpenChoice || Boolean(fieldErrorMap.styleTags || fieldErrorMap.occasionTags || fieldErrorMap.seasonTags);
   return (
     <form ref={formRef} onSubmit={handleSubmit} noValidate className="grid gap-10 lg:grid-cols-[minmax(16rem,0.78fr)_minmax(0,1.22fr)] lg:gap-16">
       {guard.prompt}
@@ -326,20 +329,31 @@ export function WardrobeItemForm({ initialItem, initialInput, initialPhoto, subm
           error={fieldErrorMap.pattern}
         />
         </FormSection>
-        <FormSection title="When you wear it" note="Optional. Ideas uses these to suggest looks.">
-        <div className="space-y-7">
-          <TagChoices title="Style" field="styleTags" options={STYLES} selected={values.styleTags} error={fieldErrorMap.styleTags} onToggle={(slug) => toggle("styleTags", slug)} />
-          <TagChoices title="Occasion" field="occasionTags" options={OCCASIONS} selected={values.occasionTags} error={fieldErrorMap.occasionTags} onToggle={(slug) => toggle("occasionTags", slug)} />
-          <TagChoices title="Season" field="seasonTags" options={SEASONS} selected={values.seasonTags} error={fieldErrorMap.seasonTags} onToggle={(slug) => toggle("seasonTags", slug)} />
-        </div>
-        </FormSection>
+        {/* Optional tags fold away so Save is reached sooner; they open by themselves when there is something in them. */}
+        <details open={wearOpen} onToggle={(event) => setWearOpen(event.currentTarget.open)} className="group/wear">
+          <summary className="flex min-h-11 cursor-pointer list-none items-start justify-between gap-4 rounded-xs [&::-webkit-details-marker]:hidden">
+            <span>
+              <span className="block font-display text-look text-midnight">When you wear it</span>
+              <span className="mt-1 block text-caption text-graphite-deep">
+                Optional. Ideas uses these to suggest looks.{tagCount > 0 && ` ${tagCount} chosen.`}
+              </span>
+            </span>
+            <ChevronDown aria-hidden="true" className="mt-2 size-5 shrink-0 text-midnight transition-transform duration-200 ease-editorial group-open/wear:rotate-180" strokeWidth={1.5} />
+          </summary>
+          <div className="mt-5 space-y-7">
+            <TagChoices title="Style" field="styleTags" options={STYLES} selected={values.styleTags} error={fieldErrorMap.styleTags} onToggle={(slug) => toggle("styleTags", slug)} />
+            <TagChoices title="Occasion" field="occasionTags" options={OCCASIONS} selected={values.occasionTags} error={fieldErrorMap.occasionTags} onToggle={(slug) => toggle("occasionTags", slug)} />
+            <TagChoices title="Season" field="seasonTags" options={SEASONS} selected={values.seasonTags} error={fieldErrorMap.seasonTags} onToggle={(slug) => toggle("seasonTags", slug)} />
+          </div>
+        </details>
         <div className="space-y-4 border-t border-line pt-6">
           {formError && <p className="border-l-2 border-danger pl-3 text-body text-danger" role="alert">{formError}</p>}
           <p className="text-caption text-graphite-deep">Name and category are the only required details.</p>
-          <StickyActionBar label="Save">
-            <Button type="submit" loading={loading || processing} loadingLabel="Saving…" className="flex-1 sm:flex-none sm:min-w-52">{submitLabel}</Button>
-          </StickyActionBar>
         </div>
+        {/* A direct child of the fields column: a sticky bar only travels inside its parent, so it stays in reach while you fill them in. */}
+        <StickyActionBar label="Save" className="-mt-6">
+          <Button type="submit" loading={loading || processing} loadingLabel="Saving…" className="flex-1 sm:flex-none sm:min-w-52">{submitLabel}</Button>
+        </StickyActionBar>
       </div>
     </form>
   );

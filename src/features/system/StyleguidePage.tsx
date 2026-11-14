@@ -552,7 +552,7 @@ function PrimitivesSection() {
       <ReasonPanel
         className="mt-8 max-w-3xl"
         reasons={[
-          { key: "occasion", message: "Indigo kurta and straight jeans are both tagged for everyday." },
+          { key: "occasion", message: "Indigo kurta and straight jeans are tagged for everyday." },
           { key: "fusion", message: "An Indian top with Western denim: fusion, on purpose." },
           { key: "colour", message: "Navy and indigo sit close; the tan Kolhapuris warm them up." },
         ]}

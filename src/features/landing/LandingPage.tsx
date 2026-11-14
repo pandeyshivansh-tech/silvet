@@ -75,11 +75,12 @@ function Step({ index, title, body, visual, active, onActive, occasions }: (type
   useEffect(() => { if (centred) onActive(index); }, [centred, index, onActive]);
   return (
     <li ref={ref} className="flex min-w-0 flex-col md:min-h-[55svh] md:last:min-h-[30svh]">
-      <div className={cn("order-2 mt-5 grid grid-cols-[2.25rem_minmax(0,1fr)] border-t pt-4 transition-[opacity,border-color] duration-200 ease-editorial md:mt-0",
-        active ? "border-midnight" : "border-line md:opacity-40")}>
-        <span aria-hidden="true" className="font-display text-look text-midnight">{String(index + 1).padStart(2, "0")}</span>
+      <div className={cn("order-2 mt-5 grid grid-cols-[2.25rem_minmax(0,1fr)] border-t pt-4 transition-colors duration-200 ease-editorial md:mt-0",
+        active ? "border-midnight" : "border-line")}>
+        {/* The step you're on is marked by its number and rule; the others stay fully readable (no fading text). */}
+        <span aria-hidden="true" className={cn("font-display text-look transition-colors duration-200 ease-editorial", active ? "text-midnight" : "md:text-graphite")}>{String(index + 1).padStart(2, "0")}</span>
         <div>
-          <h3 className="text-ui font-medium text-midnight">{title}</h3>
+          <h3 className={cn("text-ui font-medium transition-colors duration-200 ease-editorial", active ? "text-midnight" : "text-midnight md:text-graphite-deep")}>{title}</h3>
           <p className="mt-1 max-w-sm text-body text-graphite-deep">{body}</p>
           {occasions && (
             <p className="mt-4 font-display text-look text-midnight lg:text-look-lg">

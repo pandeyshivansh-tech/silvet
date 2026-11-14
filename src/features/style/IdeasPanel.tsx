@@ -1,6 +1,6 @@
-import { useId, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
 import { ChevronDown, Shuffle } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { transition } from "@/motion/presets";
 import { OCCASIONS, SEASONS, STYLES, SLOT_LABELS, itemTypeLabel, labelOf, type OccasionSlug, type StyleSlug } from "@/domain/taxonomy";
 import type { ClothingItem, OutfitPiece } from "@/domain/types";
@@ -32,8 +32,17 @@ export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
   const [saved, setSaved] = useState<{ fingerprint: string; id: string } | null>(null);
   // A new idea is dealt slot by slot; a swap changes one piece at once.
   const [dealt, setDealt] = useState(false);
+  const look = useRef<HTMLElement>(null);
+  const reduce = useReducedMotion();
   const current = ideas.result?.status === "ready" ? ideas.result.recommendation : null;
   const savedCurrent = saved?.fingerprint === current?.fingerprint ? saved : null;
+  // A new idea is dealt where you can see it: if you've read down past its top, the look comes back into view.
+  const fingerprint = current?.fingerprint;
+  useEffect(() => {
+    const section = look.current;
+    if (!dealt || !fingerprint || !section || section.getBoundingClientRect().top >= 0) return;
+    section.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+  }, [dealt, fingerprint, reduce]);
   useImperativeHandle(ref, () => ({ isDirty: () => false, isSaving: () => saving.current }), []);
   const change = (context: RecommendationContext) => {
     if (saving.current) return;
@@ -73,14 +82,17 @@ export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
             placeholder="Any season" options={SEASONS.filter((season) => season.slug !== "all-season").map((season) => ({ value: season.slug, label: season.label }))}
             onChange={(value) => change({ ...ideas.brief, season: (value || undefined) as RecommendationContext["season"] })} />
         </div>
-        <p className="mt-4 max-w-3xl text-caption text-graphite-deep">The styles you saved get a small head start here, but every style can still turn up. Ideas never guesses what you haven’t tagged, like fabric.</p>
+        <p className="mt-4 max-w-3xl text-caption text-graphite-deep">{base === "/demo"
+          ? "Ideas only uses what each piece is tagged with, never guesses like fabric. In your own wardrobe, the styles you save get a small head start."
+          : "The styles you saved get a small head start here, but every style can still turn up. Ideas never guesses what you haven’t tagged, like fabric."}</p>
         {ideas.historyWarning && <p role="status" className="mt-3 text-caption text-graphite-deep">Session storage is unavailable for idea history. Repetition protection lasts only while this screen stays open.</p>}
       </section>
 
       {current ? (
-        // Look left, reasons and actions right (1024 px+). The action bar is a direct grid item so on phones it
-        // stays above the tab bar while the whole idea is on screen.
-        <section className="mt-8 grid items-start gap-x-12 gap-y-8 lg:mt-10 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.8fr)] lg:grid-rows-[auto_auto_1fr]"
+        // Look left, reasons and actions right (1024 px+). Below that the section is a flex column: a sticky item can
+        // only travel inside its containing block, and a flex item's is the whole section (a grid item's is just its
+        // own cell), so the action bar stays above the tab bar while any part of the idea is on screen.
+        <section ref={look} className="mt-8 flex scroll-mt-14 flex-col gap-8 lg:mt-10 lg:grid lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.8fr)] lg:grid-rows-[auto_auto_1fr] lg:items-start lg:gap-x-12"
           aria-label="Recommended outfit" aria-busy={ideas.pending} data-fingerprint={current.fingerprint}>
           {/* While the next idea is found the look on screen steps back; it never blanks. */}
           <div className={cn("min-w-0 transition-opacity duration-200 ease-editorial lg:row-span-3", ideas.pending && "opacity-50")}>
@@ -106,15 +118,13 @@ export function IdeasPanel({ items, images, base, onOpen, ref }: Props) {
             }} />
           </div>
           <ReasonPanel key={current.fingerprint} reasons={current.explanations.map((reason) => ({ key: reason.kind, message: reason.message }))} />
-          <div className="min-w-0 space-y-4">
-            {saveError && <p role="alert" className="text-body text-danger">{saveError}</p>}
-            <StickyActionBar label="Idea actions">
+          <StickyActionBar label="Idea actions">
+            {saveError && <p role="alert" className="w-full text-body text-danger">{saveError}</p>}
               <Button className="flex-1" loading={mutation.isPending} loadingLabel="Saving" disabled={Boolean(savedCurrent)} onClick={() => void save()}>
                 {savedCurrent ? "Look saved" : "Save look"}
               </Button>
               <Button variant="secondary" className="flex-1" disabled={mutation.isPending || ideas.pending} onClick={() => { setSaveError(""); setDealt(true); ideas.next(); }}>Another idea</Button>
-            </StickyActionBar>
-          </div>
+          </StickyActionBar>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1 lg:-mt-4">
             <Button variant="quiet" className="min-h-11" disabled={mutation.isPending} onClick={() => { if (!saving.current) onOpen(current.pieces); }}>Open in Build</Button>
             {savedCurrent && <ButtonLink variant="quiet" className="min-h-11" to={paths.outfit(base, savedCurrent.id)}>View saved look</ButtonLink>}
@@ -164,13 +174,14 @@ function LookBoard({ pieces, render }: { pieces: readonly OutfitPiece[]; render:
   const indexed = pieces.map((piece, index) => ({ piece, index }));
   const main = BASE_ORDER.flatMap((slot) => indexed.filter(({ piece }) => piece.slot === slot));
   const finishing = indexed.filter(({ piece }) => !BASE_ORDER.includes(piece.slot));
+  // Phones: one three-across grid, so a whole six-piece look fits on a screen above the action bar.
   return (
-    <div className="space-y-8">
-      <div className={cn("grid grid-cols-2 items-start gap-x-3 gap-y-8 sm:gap-x-5", main.length > 2 && "sm:grid-cols-3")}>
+    <div className="grid grid-cols-3 items-start gap-x-3 gap-y-6 sm:block sm:space-y-8">
+      <div className={cn("contents sm:grid sm:grid-cols-2 sm:items-start sm:gap-x-5 sm:gap-y-8", main.length > 2 && "sm:grid-cols-3")}>
         {main.map(({ piece, index }) => render(piece, index))}
       </div>
       {finishing.length > 0 && (
-        <div className="grid grid-cols-2 items-start gap-x-3 gap-y-8 border-t border-line pt-6 sm:grid-cols-3 sm:gap-x-5 xl:grid-cols-4">
+        <div className="contents sm:grid sm:grid-cols-3 sm:items-start sm:gap-x-5 sm:gap-y-8 sm:border-t sm:border-line sm:pt-6 xl:grid-cols-4">
           {finishing.map(({ piece, index }) => render(piece, index))}
         </div>
       )}

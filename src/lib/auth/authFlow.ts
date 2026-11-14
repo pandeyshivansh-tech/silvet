@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { paths } from "@/app/paths";
 
-export const signInSchema = z.object({ email: z.string().trim().pipe(z.email()), password: z.string().min(1, "Enter your password.") });
+export const signInSchema = z.object({ email: z.string().trim().pipe(z.email("Enter an email address like name@example.com.")), password: z.string().min(1, "Enter your password.") });
 export const signUpSchema = signInSchema.extend({
   displayName: z.string().trim().min(1, "Enter your name.").max(80, "Use no more than 80 characters."),
   password: z.string().min(8, "Use at least 8 characters."),

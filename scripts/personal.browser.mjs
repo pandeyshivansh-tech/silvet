@@ -93,7 +93,7 @@ try {
 
   await open(`/app/wardrobe/${saree.id}`);
   await check("Usage count is refreshed after saving an outfit", `${contains("saved look")} || ${contains("outfit")}`);
-  await click("Delete"); await click("Remove piece");
+  await click("Delete"); await click("Delete");
   await check("Confirmed wardrobe deletion returns to personal wardrobe", "location.pathname==='/app/wardrobe'");
   await open(`/app/lookbook/${saved.id}`);
   await check("Deleted garments render as removed placeholders", contains("No longer in your wardrobe"));

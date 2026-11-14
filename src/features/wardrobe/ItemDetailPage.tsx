@@ -127,11 +127,11 @@ export default function ItemDetailPage() {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Remove this piece?"
+        title="Delete this piece?"
         body={usageQuery.data
           ? `It's in ${usageQuery.data} saved ${usageQuery.data === 1 ? "look" : "looks"}. Those looks will remain, with this piece marked as removed.`
           : "This piece will be removed from your wardrobe. Saved looks that include it will stay, with the piece marked as removed."}
-        confirmLabel="Remove piece"
+        confirmLabel="Delete"
         destructive
         loading={deleteItem.isPending}
         onConfirm={() => void remove()}
